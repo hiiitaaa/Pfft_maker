@@ -35,13 +35,16 @@ if %errorlevel% neq 0 (
 
 echo.
 echo アプリケーションを起動中...
-echo [NOTE] Phase 4.1では、UIは未実装です。
 
-REM 将来的にはここでメインアプリを起動
-REM python src\main.py
+REM メインアプリを起動
+python src\main.py
 
-echo.
-echo [INFO] Phase 4.2以降でUIが実装されます。
-echo [INFO] 現在はテストのみ実行可能です: run_tests.bat
-echo.
+REM エラーチェック
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] アプリケーションの起動に失敗しました。
+    pause
+    exit /b 1
+)
+
 pause
