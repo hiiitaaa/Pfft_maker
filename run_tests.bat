@@ -1,35 +1,35 @@
 @echo off
-REM Pfft_maker テスト実行スクリプト
+REM Pfft_maker Test Runner
 
 echo ========================================
-echo Pfft_maker テスト実行
+echo Pfft_maker Tests
 echo ========================================
 echo.
 
-REM Pythonの存在確認
+REM Check Python
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERROR] Pythonが見つかりません。Python 3.11以上をインストールしてください。
+    echo [ERROR] Python not found. Please install Python 3.10+
     pause
     exit /b 1
 )
 
-echo Python確認: OK
+echo Python: OK
 echo.
 
-REM データモデルテストを実行
-echo データモデルのテストを実行中...
+REM Run tests
+echo Running data model tests...
 python tests\test_models.py
 
 if %errorlevel% neq 0 (
     echo.
-    echo [ERROR] テストが失敗しました。
+    echo [ERROR] Tests failed.
     pause
     exit /b 1
 )
 
 echo.
 echo ========================================
-echo すべてのテストが成功しました！
+echo All tests passed!
 echo ========================================
 pause

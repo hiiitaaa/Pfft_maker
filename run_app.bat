@@ -1,48 +1,46 @@
 @echo off
-REM Pfft_maker アプリケーション起動スクリプト
+REM Pfft_maker Application Launcher
 
 echo ========================================
-echo Pfft_maker 起動
+echo Pfft_maker Starting...
 echo ========================================
 echo.
 
-REM Pythonの存在確認
+REM Check Python
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERROR] Pythonが見つかりません。Python 3.11以上をインストールしてください。
+    echo [ERROR] Python not found. Please install Python 3.10+
     pause
     exit /b 1
 )
 
-echo Python確認: OK
+echo Python: OK
 echo.
 
-REM 依存関係の確認
-echo 依存関係を確認中...
-pip show chardet >nul 2>&1
+REM Check dependencies
+echo Checking dependencies...
+pip show PyQt6 >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [WARNING] 依存関係がインストールされていません。
-    echo インストールしますか？ (Y/N)
-    set /p install_deps=
-    if /i "%install_deps%"=="Y" (
-        pip install -r requirements.txt
-    ) else (
-        echo インストールをキャンセルしました。
+    echo [INFO] Installing dependencies...
+    pip install -r requirements.txt
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to install dependencies.
         pause
         exit /b 1
     )
 )
 
 echo.
-echo アプリケーションを起動中...
+echo Starting application...
+echo.
 
-REM メインアプリを起動
+REM Launch app
 python src\main.py
 
-REM エラーチェック
+REM Check error
 if %errorlevel% neq 0 (
     echo.
-    echo [ERROR] アプリケーションの起動に失敗しました。
+    echo [ERROR] Application failed to start.
     pause
     exit /b 1
 )
