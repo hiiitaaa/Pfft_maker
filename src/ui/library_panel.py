@@ -11,6 +11,9 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from typing import List
 
 from models import Prompt
+from models.custom_prompt import CustomPrompt
+from core.custom_prompt_manager import CustomPromptManager
+from config.settings import Settings
 from utils.logger import get_logger
 
 
@@ -36,6 +39,11 @@ class LibraryPanel(QWidget):
         self.filtered_prompts: List[Prompt] = []
         self.current_category: str = "全て"  # カテゴリフィルタ
 
+        # 自作プロンプト管理
+        settings = Settings()
+        self.custom_prompt_manager = CustomPromptManager(settings.get_data_dir())
+        self.custom_prompts: List[CustomPrompt] = []
+
         # UI構築
         self._create_ui()
 
@@ -43,6 +51,9 @@ class LibraryPanel(QWidget):
         self.search_timer = QTimer()
         self.search_timer.setSingleShot(True)
         self.search_timer.timeout.connect(self._execute_search)
+
+        # 自作プロンプトを読み込み
+        self._load_custom_prompts()
 
         self.logger.debug("ライブラリパネル初期化完了")
 
@@ -635,3 +646,35 @@ class LibraryPanel(QWidget):
                 "エラー",
                 f"ラベル生成中にエラーが発生しました:\n{e}"
             )
+
+    def _load_custom_prompts(self):
+        """自作プロンプトを読み込み"""
+        try:
+            self.custom_prompts = self.custom_prompt_manager.prompts
+            self.logger.info(f"自作プロンプト読み込み: {len(self.custom_prompts)}件")
+        except Exception as e:
+            self.logger.error(f"自作プロンプト読み込みエラー: {e}", exc_info=True)
+            self.custom_prompts = []
+
+    def reload_custom_prompts(self):
+        """自作プロンプトを再読み込み（保存後に呼び出す）"""
+        self._load_custom_prompts()
+        self._update_tree()
+
+
+    def _filter_custom_prompts(self):
+        """自作プロンプトをフィルタ"""
+        query = self.search_bar.text().strip()
+        
+        filtered = self.custom_prompts
+
+        # カテゴリフィルタ
+        if self.current_category != "全て" and self.current_category != "自作":
+            return []
+        
+        # 検索フィルタ
+        if query:
+            filtered = [p for p in filtered if p.matches_search(query)]
+
+        return filtered
+
