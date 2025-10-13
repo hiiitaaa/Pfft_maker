@@ -8,6 +8,7 @@ from .block import Block, BlockType
 from .scene import Scene
 from .project import Project
 from .prompt import Prompt
+from .common_prompt import CommonPrompt
 
 __all__ = [
     'SerializableMixin',
@@ -17,4 +18,5 @@ __all__ = [
     'Scene',
     'Project',
     'Prompt',
+    'CommonPrompt',
 ]

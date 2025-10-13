@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
-from ..models import Project, Scene, Block, BlockType, Prompt
+from models import Project, Scene, Block, BlockType, Prompt
 
 
 class SceneEditorPanel(QWidget):
@@ -164,18 +164,18 @@ class SceneEditorPanel(QWidget):
 
         for block in self.current_scene.blocks:
             if block.type == BlockType.BREAK:
-                item_text = "--- BREAK ---"
+                item_text = "[BREAK]"
             elif block.type == BlockType.WILDCARD:
-                item_text = f"🎲 {block.content}"
+                item_text = f"[W] {block.content}"
             else:
-                item_text = f"📌 {block.content[:50]}"
+                item_text = f"[F] {block.content[:50]}"
 
             item = QListWidgetItem(item_text)
             item.setData(Qt.ItemDataRole.UserRole, block.block_id)
             self.block_list.addItem(item)
 
-    def insert_prompt_block(self, prompt: Prompt):
-        """プロンプトブロックを挿入
+    def insert_prompt_as_fixed_text(self, prompt: Prompt):
+        """プロンプトを固定テキストブロックとして挿入
 
         Args:
             prompt: プロンプトオブジェクト
@@ -183,15 +183,37 @@ class SceneEditorPanel(QWidget):
         if not self.current_scene:
             return
 
-        # ワイルドカードパス生成（簡易版）
-        wildcard_path = f"__{prompt.source_file.replace('.txt', '')}__"
+        # 固定テキストブロック作成
+        block = Block(
+            block_id=self.current_scene.get_next_block_id(),
+            type=BlockType.FIXED_TEXT,
+            content=prompt.prompt,
+            source={
+                "prompt_id": prompt.id,
+                "source_file": prompt.source_file,
+                "label_ja": prompt.label_ja
+            }
+        )
 
-        # ブロック作成
+        self.current_scene.add_block(block)
+        self._update_block_list()
+        self.scene_changed.emit(self.current_scene)
+
+    def insert_wildcard_block(self, wildcard_path: str):
+        """ワイルドカードブロックを挿入
+
+        Args:
+            wildcard_path: ワイルドカードパス（例: __posing/arm__）
+        """
+        if not self.current_scene:
+            return
+
+        # ワイルドカードブロック作成
         block = Block(
             block_id=self.current_scene.get_next_block_id(),
             type=BlockType.WILDCARD,
             content=wildcard_path,
-            source={"prompt_id": prompt.id}
+            source={"wildcard_path": wildcard_path}
         )
 
         self.current_scene.add_block(block)
@@ -280,11 +302,15 @@ class SceneEditorPanel(QWidget):
         if not self.project:
             return
 
+        scene_id = self.project.get_next_scene_id()
         scene = Scene(
-            scene_id=self.project.get_next_scene_id(),
-            scene_name=f"シーン{self.project.get_next_scene_id()}",
+            scene_id=scene_id,
+            scene_name=f"シーン{scene_id}",
             is_completed=False
         )
+
+        # 共通プロンプトを自動挿入
+        self._insert_common_prompts(scene)
 
         self.project.add_scene(scene)
 
@@ -325,3 +351,57 @@ class SceneEditorPanel(QWidget):
         current = self.scene_tabs.currentIndex()
         if current > 0:
             self.scene_tabs.setCurrentIndex(current - 1)
+
+    def _insert_common_prompts(self, scene: Scene):
+        """共通プロンプトを自動挿入
+
+        Args:
+            scene: シーンオブジェクト
+        """
+        if not self.project or not self.project.common_prompts:
+            return
+
+        # 有効な共通プロンプトを取得
+        enabled_prompts = [cp for cp in self.project.common_prompts if cp.enabled]
+
+        # 挿入位置別にグループ化
+        start_prompts = [cp for cp in enabled_prompts if cp.position == "start"]
+        end_prompts = [cp for cp in enabled_prompts if cp.position == "end"]
+
+        # 先頭に挿入（逆順）
+        for cp in reversed(start_prompts):
+            block = Block(
+                block_id=scene.get_next_block_id(),
+                type=BlockType.FIXED_TEXT,
+                content=cp.content,
+                is_common=True
+            )
+            scene.blocks.insert(0, block)
+
+            # BREAK挿入
+            if cp.insert_break_after:
+                break_block = Block(
+                    block_id=scene.get_next_block_id(),
+                    type=BlockType.BREAK,
+                    content=""
+                )
+                scene.blocks.insert(1, break_block)
+
+        # 末尾に挿入
+        for cp in end_prompts:
+            block = Block(
+                block_id=scene.get_next_block_id(),
+                type=BlockType.FIXED_TEXT,
+                content=cp.content,
+                is_common=True
+            )
+            scene.add_block(block)
+
+            # BREAK挿入
+            if cp.insert_break_after:
+                break_block = Block(
+                    block_id=scene.get_next_block_id(),
+                    type=BlockType.BREAK,
+                    content=""
+                )
+                scene.add_block(break_block)

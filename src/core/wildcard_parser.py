@@ -5,10 +5,10 @@
 
 import re
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
-from ..models import Prompt, generate_id
-from ..utils.file_utils import (
+from models import Prompt, generate_id
+from utils.file_utils import (
     read_text_file,
     extract_category_from_path,
     format_wildcard_path,
@@ -40,11 +40,13 @@ class WildcardParser:
         self.wildcard_dir = wildcard_dir
         self.prompts: List[Prompt] = []
 
-    def scan_directory(self, progress_callback=None) -> List[Prompt]:
+    def scan_directory(self, progress_callback=None, exclude_patterns: Optional[List[str]] = None) -> List[Prompt]:
         """ディレクトリを再帰的にスキャン
 
         Args:
             progress_callback: 進捗コールバック関数（オプション）
+                              progress_callback(current, total, message)
+            exclude_patterns: 除外パターンのリスト（例: ["backup_*", ".git"]）
 
         Returns:
             Promptオブジェクトのリスト
@@ -52,7 +54,7 @@ class WildcardParser:
         self.prompts.clear()
 
         # テキストファイルをスキャン
-        text_files = scan_text_files(self.wildcard_dir, recursive=True)
+        text_files = scan_text_files(self.wildcard_dir, recursive=True, exclude_patterns=exclude_patterns)
 
         total_files = len(text_files)
         for i, file_path in enumerate(text_files):
@@ -62,7 +64,8 @@ class WildcardParser:
 
             # 進捗通知
             if progress_callback:
-                progress_callback(i + 1, total_files)
+                relative_path = file_path.relative_to(self.wildcard_dir)
+                progress_callback(i + 1, total_files, f"Parsing: {relative_path}")
 
         return self.prompts
 

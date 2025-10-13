@@ -15,7 +15,7 @@ from PyQt6.QtGui import QAction, QKeySequence
 from .library_panel import LibraryPanel
 from .scene_editor_panel import SceneEditorPanel
 from .preview_panel import PreviewPanel
-from ..models import Project
+from models import Project
 
 
 class MainWindow(QMainWindow):
@@ -115,11 +115,28 @@ class MainWindow(QMainWindow):
 
         file_menu.addSeparator()
 
+        # プロンプト出力
+        export_action = QAction("プロンプト出力(&E)...", self)
+        export_action.setShortcut(QKeySequence("Ctrl+E"))
+        export_action.triggered.connect(self._on_export_prompts)
+        file_menu.addAction(export_action)
+
+        file_menu.addSeparator()
+
         # 終了
         exit_action = QAction("終了(&X)", self)
         exit_action.setShortcut(QKeySequence.StandardKey.Quit)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+
+        # ツールメニュー
+        tools_menu = menubar.addMenu("ツール(&T)")
+
+        # 設定
+        settings_action = QAction("設定(&S)...", self)
+        settings_action.setShortcut(QKeySequence("Ctrl+,"))
+        settings_action.triggered.connect(self._on_settings)
+        tools_menu.addAction(settings_action)
 
         # ヘルプメニュー
         help_menu = menubar.addMenu("ヘルプ(&H)")
@@ -150,9 +167,14 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self):
         """シグナル・スロット接続"""
-        # ライブラリ → エディタ
+        # ライブラリ → エディタ（固定テキスト）
         self.library_panel.prompt_selected.connect(
-            self.scene_editor.insert_prompt_block
+            self.scene_editor.insert_prompt_as_fixed_text
+        )
+
+        # ライブラリ → エディタ（ワイルドカード）
+        self.library_panel.wildcard_selected.connect(
+            self.scene_editor.insert_wildcard_block
         )
 
         # エディタ → プレビュー
@@ -273,6 +295,29 @@ class MainWindow(QMainWindow):
         """プロジェクト変更時"""
         self._update_title()
 
+    def _on_export_prompts(self):
+        """プロンプト出力"""
+        from .output_dialog import OutputDialog
+
+        if not self.current_project or not self.current_project.scenes:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "出力するシーンがありません"
+            )
+            return
+
+        # 出力ダイアログ表示
+        dialog = OutputDialog(self.current_project, self)
+        dialog.exec()
+
+    def _on_settings(self):
+        """設定ダイアログ表示"""
+        from .settings_dialog import SettingsDialog
+
+        dialog = SettingsDialog(self)
+        dialog.exec()
+
     def _on_about(self):
         """バージョン情報"""
         QMessageBox.about(
@@ -280,7 +325,7 @@ class MainWindow(QMainWindow):
             "Pfft_makerについて",
             "Pfft_maker v0.1.0\n\n"
             "Stable Diffusion WebUI用プロンプト管理ツール\n\n"
-            "Phase 4.2 - UI実装完了"
+            "Phase 4.3 - シーン編集・出力機能完了"
         )
 
     def closeEvent(self, event):

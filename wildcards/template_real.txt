@@ -1,0 +1,28 @@
+<lora:photomodel_by_readandsign_ILL:0.3> realistic, posing,
+<lora:Sweating my balls of mate:0.2> ,
+__posing/arm__,__posing/leg__,
+(black_hair,textured medium length hair, subtle layers, casual style),cute face,white skin,
+1 girl,round face,cute_face,brown eyes,__posing/face__,__表情/口__,__表情/目__,﻿torogao, squinting, cry, half closed eyes:1.2, annoyed, (orgasm:1.2), rich expressive, painful face, naughty:1.5, heavy breathing, fucked silly, saliva, (blush),
+,gigantic breasts,huge_breasts, plump_body, fat,pubric hair,
+BREAK,
+traditional japanese miko outfit, white haori top, red hakama skirt, shrine maiden attire, flowing kimono sleeves, ceremonial clothing, sacred shinto costume, pristine white and crimson colors
+,black round frame glasses,
+__背景/miko__,
+masterpiece,best_quality,absurdres,highly_detailed,raw photo,
+ultra detailed,8k,high resolution,beautiful detailed,sharp focus, best quality,super hyper realism,realistic,photorealism,photography, Effect,Leica M10,general,
+,reflector_lighting,moody lighting,
+__angle/angle__,__angle/camera__,
+
+
+I"s,katsura_masakazu_style,official_art,
+,__posing/arm__,__posing/leg__,
+BREAK
+embarrassed,blush,﻿__キャラ/SAYA__,nervous, embarrassed,heavy_breathing, conflicted,__表情/アヘ顔嫌顔__,
+nude,vagina,nipples,pubrichair,maid_headdress,
+BREAK
+<lora:futoshi_v1:0.7> futoshi,1male,faceless_man,fat_man,bald_head,nude,
+BREAK
+__angle/angle__,__angle/camera__,
+infirmary, examination_room, white_walls, examination_table, medical_equipment,
+motion_outline,speed_lines,motion_lines,motion_blur,
+masterpiece, best quality, amazing quality,port rait,newest,ultra-detailed,absurdres,detailed_background

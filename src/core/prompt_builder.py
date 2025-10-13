@@ -6,7 +6,7 @@
 import re
 from typing import List
 
-from ..models import Scene, Project, BlockType
+from models import Scene, Project, BlockType
 
 
 class PromptBuilder:
@@ -22,30 +22,46 @@ class PromptBuilder:
             scene: シーンオブジェクト
 
         Returns:
-            1行のプロンプト文字列（カンマ区切り）
+            1行のプロンプト文字列
 
         Example:
             >>> scene = Scene(scene_id=1, scene_name="保健室", blocks=[...])
             >>> builder = PromptBuilder()
             >>> builder.build_scene_prompt(scene)
-            "clothed masturbation, BREAK, __posing/arm__, BREAK, masterpiece"
+            "clothed masturbation, BREAK __posing/arm__, BREAK masterpiece"
+
+        BREAK処理ルール (FR-018):
+            - BREAK前: カンマあり（`prompt, BREAK`）
+            - BREAK後: スペース区切り（`BREAK prompt`）
+            - 連続カンマ・スペースは自動削除
         """
-        parts = []
+        if not scene.blocks:
+            return ""
 
-        for block in scene.blocks:
+        result = []
+
+        for i, block in enumerate(scene.blocks):
             if block.type == BlockType.BREAK:
-                parts.append("BREAK")
+                result.append(", BREAK")
             else:
-                # プロンプト内容をそのまま追加
-                parts.append(block.content.strip())
+                content = block.content.strip()
+                if i == 0:
+                    # 最初のブロック
+                    result.append(content)
+                elif scene.blocks[i - 1].type == BlockType.BREAK:
+                    # BREAK直後: スペース区切り
+                    result.append(" " + content)
+                else:
+                    # 通常: カンマ+スペース区切り
+                    result.append(", " + content)
 
-        # カンマ + スペース区切りで結合
-        prompt = ", ".join(parts)
+        prompt = "".join(result)
 
-        # 連続カンマを削除（念のため）
-        prompt = re.sub(r',\s*,', ', ', prompt)
+        # クリーンアップ
+        prompt = re.sub(r',\s*,', ', ', prompt)  # 連続カンマ削除
+        prompt = re.sub(r'\s+', ' ', prompt)     # 連続スペース削除
 
-        return prompt
+        return prompt.strip()
 
     def build_all_prompts(
         self,

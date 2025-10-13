@@ -1,0 +1,10 @@
+﻿standing
+standing,spread legs
+sitting
+sitting,spread legs
+looking back
+looking back,spread legs
+looking back,all fours
+hug
+leg lock
+arched back

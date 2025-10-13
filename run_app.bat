@@ -19,23 +19,24 @@ echo.
 
 REM Check dependencies
 echo Checking dependencies...
-pip show PyQt6 >nul 2>&1
+python -m pip show PyQt6 >nul 2>&1
 if %errorlevel% neq 0 (
     echo [INFO] Installing dependencies...
-    pip install -r requirements.txt
+    python -m pip install -r requirements.txt
     if %errorlevel% neq 0 (
         echo [ERROR] Failed to install dependencies.
         pause
         exit /b 1
     )
 )
+echo Dependencies: OK
 
 echo.
 echo Starting application...
 echo.
 
 REM Launch app
-python src\main.py
+python run.py
 
 REM Check error
 if %errorlevel% neq 0 (

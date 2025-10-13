@@ -1,0 +1,4 @@
+shrine,torii,stone_steps,forest,wooden_structure,white_clouds,
+shrine,shrine_interior,offering_table,tatami,fusuma,soft_light,indoor,
+shrine,shrine_interior,shimenawa,tatami,fusuma,
+shrine,traditional_room,tatami,futons,paper_sliding_doors,cushions,quiet,resting_place,private_room,japanese_style_room,curtains,indoor

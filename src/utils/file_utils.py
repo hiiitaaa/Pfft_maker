@@ -4,8 +4,9 @@
 """
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import chardet
+import fnmatch
 
 
 def detect_encoding(file_path: Path) -> str:
@@ -115,15 +116,57 @@ def format_wildcard_path(file_path: Path, root_dir: Path) -> str:
     return f"__{unix_path}__"
 
 
-def scan_text_files(directory: Path, recursive: bool = True) -> List[Path]:
+def should_exclude(path: Path, exclude_patterns: List[str], root_dir: Path) -> bool:
+    """パスが除外パターンに一致するかチェック
+
+    Args:
+        path: チェック対象パス
+        exclude_patterns: 除外パターンのリスト（例: ["backup_*", ".git"]）
+        root_dir: ルートディレクトリ
+
+    Returns:
+        除外すべき場合True
+
+    Note:
+        ファイル名だけでなく、パス内のすべてのディレクトリ名もチェックします。
+        例: "backup_20250902/posing/arm.txt" は "backup_*" パターンで除外されます。
+    """
+    # 相対パスを取得
+    try:
+        relative = path.relative_to(root_dir)
+    except ValueError:
+        # root_dirの外部の場合は除外しない
+        return False
+
+    # パス内の各パーツをチェック
+    for part in relative.parts:
+        for pattern in exclude_patterns:
+            if fnmatch.fnmatch(part, pattern):
+                return True
+
+    return False
+
+
+def scan_text_files(directory: Path, recursive: bool = True, exclude_patterns: Optional[List[str]] = None) -> List[Path]:
     """ディレクトリ内のテキストファイルをスキャン
 
     Args:
         directory: スキャン対象ディレクトリ
         recursive: 再帰的にスキャンするか
+        exclude_patterns: 除外パターンのリスト（例: ["backup_*", ".git"]）
 
     Returns:
         テキストファイルのパスリスト
     """
     pattern = "**/*.txt" if recursive else "*.txt"
-    return sorted(directory.glob(pattern))
+    all_files = directory.glob(pattern)
+
+    # 除外パターンが指定されている場合はフィルタリング
+    if exclude_patterns:
+        filtered_files = [
+            f for f in all_files
+            if not should_exclude(f, exclude_patterns, directory)
+        ]
+        return sorted(filtered_files)
+    else:
+        return sorted(all_files)

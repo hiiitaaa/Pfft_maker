@@ -1,0 +1,1 @@
+﻿(light pink hair,textured medium_hair:1.3,bangs),coharu,1 lady,troubled eyebrows,__posing/face__,__表情/目__,__表情/口__,green eyes,large breasts,shiny skin,<lora:Breast Size Slider - Illustrious - V2 alpha1.0 rank4 noxattn last:2.0>

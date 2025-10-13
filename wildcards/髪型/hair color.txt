@@ -1,0 +1,4 @@
+﻿black
+brown
+light brown
+blonde:0.3

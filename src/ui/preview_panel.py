@@ -11,8 +11,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QClipboard
 from PyQt6.QtWidgets import QApplication
 
-from ..models import Scene
-from ..core.prompt_builder import PromptBuilder
+from models import Scene
+from core.prompt_builder import PromptBuilder
 
 
 class PreviewPanel(QWidget):
@@ -58,7 +58,7 @@ class PreviewPanel(QWidget):
         # ボタン
         button_layout = QHBoxLayout()
 
-        copy_btn = QPushButton("📋 コピー")
+        copy_btn = QPushButton("コピー")
         copy_btn.clicked.connect(self._on_copy)
         button_layout.addWidget(copy_btn)
 

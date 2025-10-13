@@ -1,0 +1,8 @@
+﻿from above
+from very high
+from below
+from left side
+from right side
+from behind
+from behind
+dynamic angle

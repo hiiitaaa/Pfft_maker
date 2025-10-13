@@ -1,0 +1,129 @@
+﻿#<lora:Medalist HikaruKamisaki v10:1.0>KHA ONE, hair between eyes, long hair, yellow eyes, black hair, plaid skirt, black pantyhose, white shirt, black bow, frilled, blue skirt, dress, (child, loli, pale skin: 1.3)
+#<lora:Medalist HikaruKamisaki v10:1.0>KHA two, ponytail, yellow eyes, black hair, black sportswear, black gloves, earrings, (child, loli, pale skin: 1.3)
+#<lora:Medalist HikaruKamisaki v10:1.0>HKA three, ponytail, black hair, yellow eyes, sleeveless dress, white pantyhose, jewelry, black dress, black gloves, elbow gloves, (child, loli, pale skin: 1.3)
+anjou naruko, ano hi mita hana no namae wo bokutachi wa mada shiranai.
+honma meiko, ano hi mita hana no namae wo bokutachi wa mada shiranai.
+bayonetta, bayonetta \(series\)
+balalaika \(black lagoon\), black lagoon
+revy \(black lagoon\), black lagoon
+roberta \(black lagoon\), black lagoon
+gotoh hitori, bocchi the rock!
+asui tsuyu, boku no hero academia
+midnight \(boku no hero academia\), boku no hero academia
+toga himiko, boku no hero academia
+uraraka ochako, boku no hero academia
+yaoyorozu momo, boku no hero academia
+daidouji tomoyo, cardcaptor sakura
+kinomoto sakura, cardcaptor sakura
+makima \(chainsaw man\), chainsaw man
+c.c., code geass
+cornelia li britannia, code geass
+euphemia li britannia, code geass
+kouzuki kallen, code geass
+villetta nu, code geass
+lucy \(cyberpunk\), cyberpunk \(series\)
+rebecca \(cyberpunk\), cyberpunk \(series\)
+amane misa, death note
+jessica albert, dragon quest
+manya \(dq4\), dragon quest
+priest \(dq3\), dragon quest
+princess of moonbrook, dragon quest
+marcille donato, dungeon meshi
+hestia \(danmachi\), dungeon ni deai wo motomeru no wa machigatteiru darou ka
+tohsaka rin, fate \(series\)
+aerith gainsborough, final fantasy
+lulu \(ff10\), final fantasy
+yuna \(ff10\), final fantasy
+lust \(fma\), fullmetal alchemist
+riza hawkeye, fullmetal alchemist
+nadia la arwall, fushigi no umi no nadia
+rory mercury, gate - jieitai ka no chi nite kaku tatakaeri
+kusanagi motoko, ghost in the shell
+priestess \(goblin slayer!\), goblin slayer!
+shinjou akane, gridman universe
+miorine rembran, gundam
+secelia dote, gundam
+integra hellsing, hellsing
+seras victoria, hellsing
+myne \(honzuki no gekokujou\), honzuki no gekokujou
+mei mei \(jujutsu kaisen\), jujutsu kaisen
+akiyama mio, k-on!
+kotobuki tsumugi, k-on!
+nakano azusa, k-on!
+fujiwara chika, kaguya-sama wa kokurasetai ~tensai-tachi no renai zunousen~
+hayasaka ai, kaguya-sama wa kokurasetai ~tensai-tachi no renai zunousen~
+shinomiya kaguya, kaguya-sama wa kokurasetai ~tensai-tachi no renai zunousen~
+nausicaa, kaze no tani no nausicaa
+jakuzure nonon, kill la kill
+kanroji mitsuri, kimetsu no yaiba
+kochou shinobu, kimetsu no yaiba
+tsuyuri kanao, kimetsu no yaiba
+aqua \(konosuba\), kono subarashii sekai ni shukufuku wo!
+darkness \(konosuba\), kono subarashii sekai ni shukufuku wo!
+megumin, kono subarashii sekai ni shukufuku wo!
+wiz \(konosuba\), kono subarashii sekai ni shukufuku wo!
+yunyun \(konosuba\), kono subarashii sekai ni shukufuku wo!
+maomao \(kusuriya no hitorigoto\), kusuriya no hitorigoto
+akatsuki \(log horizon\), log horizon
+hiiragi kagami, lucky star
+takara miyuki, lucky star
+inoue takina, lycoris recoil
+kurumi \(lycoris recoil\), lycoris recoil
+nishikigi chisato, lycoris recoil
+akemi homura, mahou shoujo madoka magica
+tomoe mami, mahou shoujo madoka magica
+hiiragi utena, mahou shoujo ni akogarete, magia baiser
+minakami sayo, mahou shoujo ni akogarete, magia azure
+kiki \(majo no takkyuubin\), majo no takkyuubin
+princess of the crystal, mawaru penguindrum
+hachikuji mayoi, monogatari \(series\)
+hanekawa tsubasa, monogatari \(series\)
+oshino shinobu, monogatari \(series\)
+sengoku nadeko, monogatari \(series\)
+senjougahara hitagi, monogatari \(series\)
+eris greyrat, mushoku tensei
+roxy migurdia, mushoku tensei
+hyuuga hinata, naruto \(series\)
+tsunade \(naruto\), naruto \(series\)
+chouzetsusaikawa tenshi-chan, needy girl overdose
+makinami mari illustrious, neon genesis evangelion
+souryuu asuka langley, neon genesis evangelion
+2b \(nier:automata\), nier:automata, blindfold
+shiro \(no game no life\), no game no life
+fubuki \(one-punch man\), one-punch man
+tatsumaki, one-punch man
+oyama mihari, onii-chan wa oshimai!
+gokou ruri, ore no imouto ga konna ni kawaii wake ga nai
+arima kana, oshi no ko
+kurokawa akane, oshi no ko
+memcho, oshi no ko
+albedo \(overlord\), overlord \(maruyama\)
+black cat d.va, overwatch
+d.va \(overwatch\), overwatch
+mercy \(overwatch\), overwatch
+widowmaker \(overwatch\), overwatch
+witch mercy, overwatch
+beatrice \(re:zero\), re:zero kara hajimeru isekai seikatsu
+elsa granhilte, re:zero kara hajimeru isekai seikatsu
+ram \(re:zero\), re:zero kara hajimeru isekai seikatsu
+rem \(re:zero\), re:zero kara hajimeru isekai seikatsu
+nakoruru, samurai spirits
+aura \(sousou no frieren\), sousou no frieren
+fern \(sousou no frieren\), sousou no frieren
+frieren, sousou no frieren
+ubel \(sousou no frieren\), sousou no frieren
+holo, spice and wolf
+anya \(spy x family\), spy x family
+yor briar, spy x family
+akiha rumiho, steins;gate
+makise kurisu, steins;gate
+nagato yuki, suzumiya haruhi no yuuutsu
+suzumiya haruhi, suzumiya haruhi no yuuutsu
+asuna \(sao\), sword art online
+llenn \(sao\), sword art online
+last order \(toaru majutsu no index\), toaru majutsu no index
+shirai kuroko, toaru majutsu no index
+lum, urusei yatsura
+morrigan aensland, vampire \(game\)
+violet evergarden, violet evergarden \(series\)
+tanya degurechaff, youjo senki

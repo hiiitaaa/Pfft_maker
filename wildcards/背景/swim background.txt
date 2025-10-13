@@ -1,0 +1,5 @@
+﻿Olympic swimming pool, competition lanes, starting blocks, timing system, spectator stands, professional lighting[競泳用プール]
+public pool, mixed swimmers, lifeguard, diving board, safety equipment, families, children's area[公共遊泳プール]
+luxury infinity pool, palm trees, cabanas, sun loungers, swim-up bar, tropical atmosphere[リゾートプール]
+indoor facility, climate controlled, glass ceiling, heated water, year-round swimming, echoing acoustics[屋内プール]
+natural pool, eco-friendly, water plants, stone edges, sustainable design, garden setting[自然プール]

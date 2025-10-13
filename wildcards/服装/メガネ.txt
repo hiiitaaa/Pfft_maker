@@ -1,0 +1,1 @@
+﻿{0.7::round frame glasses|0.3::not wearing glasses}

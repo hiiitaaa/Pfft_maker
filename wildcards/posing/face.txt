@@ -1,0 +1,10 @@
+﻿face up
+face down
+face left
+face right
+face sideways
+profile face
+three quarter face
+face turned back
+head tilted
+face forward

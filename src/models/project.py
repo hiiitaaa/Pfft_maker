@@ -9,6 +9,7 @@ from datetime import datetime
 
 from .base import SerializableMixin
 from .scene import Scene
+from .common_prompt import CommonPrompt
 
 
 @dataclass
@@ -31,7 +32,7 @@ class Project(SerializableMixin):
     last_modified: datetime
     description: str = ""
     scenes: List[Scene] = field(default_factory=list)
-    common_prompts: Dict[str, str] = field(default_factory=dict)
+    common_prompts: List[CommonPrompt] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -44,6 +45,7 @@ class Project(SerializableMixin):
         """
         data = super().to_dict()
         data['scenes'] = [scene.to_dict() for scene in self.scenes]
+        data['common_prompts'] = [cp.to_dict() for cp in self.common_prompts]
         return data
 
     @classmethod
@@ -59,6 +61,10 @@ class Project(SerializableMixin):
         # scenesをSceneオブジェクトに変換
         if 'scenes' in data:
             data['scenes'] = [Scene.from_dict(s) for s in data['scenes']]
+
+        # common_promptsをCommonPromptオブジェクトに変換
+        if 'common_prompts' in data:
+            data['common_prompts'] = [CommonPrompt.from_dict(cp) for cp in data['common_prompts']]
 
         # datetimeフィールドを変換
         data = cls._deserialize_datetime(data, cls)
@@ -148,9 +154,16 @@ class Project(SerializableMixin):
             新規プロジェクトオブジェクト
         """
         now = datetime.now()
+
+        # デフォルト共通プロンプトを追加
+        default_common_prompts = [
+            CommonPrompt.create_default_quality_tags(),
+        ]
+
         return cls(
             name=name,
             created_date=now,
             last_modified=now,
-            description=description
+            description=description,
+            common_prompts=default_common_prompts
         )
