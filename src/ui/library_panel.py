@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from typing import List
 
 from models import Prompt
+from utils.logger import get_logger
 
 
 class LibraryPanel(QWidget):
@@ -30,6 +31,7 @@ class LibraryPanel(QWidget):
         """初期化"""
         super().__init__()
 
+        self.logger = get_logger()
         self.prompts: List[Prompt] = []
         self.filtered_prompts: List[Prompt] = []
         self.current_category: str = "全て"  # カテゴリフィルタ
@@ -41,6 +43,8 @@ class LibraryPanel(QWidget):
         self.search_timer = QTimer()
         self.search_timer.setSingleShot(True)
         self.search_timer.timeout.connect(self._execute_search)
+
+        self.logger.debug("ライブラリパネル初期化完了")
 
     def _create_ui(self):
         """UI構築"""
@@ -285,6 +289,8 @@ class LibraryPanel(QWidget):
         from core.library_manager import LibraryManager
         from config.settings import Settings
 
+        self.logger.info("ライブラリ読み込み開始")
+
         # プログレスダイアログ作成
         progress = QProgressDialog("ワイルドカードファイルを読み込んでいます...", "キャンセル", 0, 100, self)
         progress.setWindowTitle("ライブラリ読み込み")
@@ -351,7 +357,10 @@ class LibraryPanel(QWidget):
             self.sync_button.setEnabled(True)
             self.generate_labels_button.setEnabled(True)
 
+            self.logger.info(f"ライブラリ読み込み完了: {len(prompts)}件")
+
         except Exception as e:
+            self.logger.exception("ライブラリ読み込み中にエラーが発生")
             progress.close()
             QMessageBox.critical(
                 self,
@@ -393,6 +402,7 @@ class LibraryPanel(QWidget):
                 )
 
         except Exception as e:
+            self.logger.error(f"更新チェック中にエラー: {e}", exc_info=True)
             QMessageBox.warning(
                 self,
                 "エラー",
@@ -475,6 +485,7 @@ class LibraryPanel(QWidget):
             )
 
         except Exception as e:
+            self.logger.exception("ファイル同期中にエラーが発生")
             QMessageBox.critical(
                 self,
                 "エラー",
@@ -483,7 +494,7 @@ class LibraryPanel(QWidget):
 
     def _on_generate_labels(self):
         """ラベル一括生成（AI）"""
-        from PyQt6.QtWidgets import QProgressDialog
+        from PyQt6.QtWidgets import QProgressDialog, QMessageBox
         from ai import LabelGenerator, APIKeyManager, CostEstimator
         from config.settings import Settings
 
@@ -608,6 +619,7 @@ class LibraryPanel(QWidget):
             self._update_tree()
 
         except Exception as e:
+            self.logger.exception("ラベル生成中にエラーが発生")
             progress.close()
             QMessageBox.critical(
                 self,
