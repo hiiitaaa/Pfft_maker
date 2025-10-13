@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication
 
 from models import Scene
 from core.prompt_builder import PromptBuilder
+from config.settings import Settings
 
 
 class PreviewPanel(QWidget):
@@ -26,7 +27,8 @@ class PreviewPanel(QWidget):
         super().__init__()
 
         self.current_scene: Scene | None = None
-        self.prompt_builder = PromptBuilder()
+        self.settings = Settings()
+        self.prompt_builder = PromptBuilder(self.settings)
 
         # UI構築
         self._create_ui()

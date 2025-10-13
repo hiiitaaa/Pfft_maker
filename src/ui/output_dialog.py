@@ -13,6 +13,7 @@ from PyQt6.QtCore import Qt
 
 from models import Project
 from core.prompt_builder import PromptBuilder
+from config.settings import Settings
 
 
 class OutputDialog(QDialog):
@@ -35,7 +36,8 @@ class OutputDialog(QDialog):
         super().__init__(parent)
 
         self.project = project
-        self.prompt_builder = PromptBuilder()
+        self.settings = Settings()
+        self.prompt_builder = PromptBuilder(self.settings)
         self.output_path: Path | None = None
 
         # ダイアログ設定

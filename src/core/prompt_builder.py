@@ -4,7 +4,7 @@
 """
 
 import re
-from typing import List
+from typing import List, Optional
 
 from models import Scene, Project, BlockType
 
@@ -13,13 +13,23 @@ class PromptBuilder:
     """プロンプトビルダー
 
     シーンのブロックリストから1行のプロンプトを構築。
+    共通プロンプト（品質タグ、LoRAなど）の自動挿入にも対応。
     """
 
-    def build_scene_prompt(self, scene: Scene) -> str:
+    def __init__(self, settings=None):
+        """初期化
+
+        Args:
+            settings: 設定オブジェクト（Noneの場合は共通プロンプト挿入なし）
+        """
+        self.settings = settings
+
+    def build_scene_prompt(self, scene: Scene, apply_common_prompts: bool = True) -> str:
         """シーンの最終プロンプトを構築
 
         Args:
             scene: シーンオブジェクト
+            apply_common_prompts: 共通プロンプトを適用するか
 
         Returns:
             1行のプロンプト文字列
@@ -40,13 +50,25 @@ class PromptBuilder:
 
         result = []
 
+        # 先頭の共通プロンプト
+        if apply_common_prompts and self.settings:
+            start_prompts = self.settings.get_common_prompts_by_position("start")
+            for cp in start_prompts:
+                result.append(cp.content)
+                if cp.insert_break_after:
+                    result.append(", BREAK")
+                result.append(", ")
+
         for i, block in enumerate(scene.blocks):
             if block.type == BlockType.BREAK:
                 result.append(", BREAK")
             else:
                 content = block.content.strip()
-                if i == 0:
-                    # 最初のブロック
+                if i == 0 and not result:
+                    # 最初のブロック（共通プロンプトがない場合）
+                    result.append(content)
+                elif i == 0:
+                    # 最初のブロック（共通プロンプトがある場合）
                     result.append(content)
                 elif scene.blocks[i - 1].type == BlockType.BREAK:
                     # BREAK直後: スペース区切り
@@ -55,13 +77,23 @@ class PromptBuilder:
                     # 通常: カンマ+スペース区切り
                     result.append(", " + content)
 
+        # 末尾の共通プロンプト
+        if apply_common_prompts and self.settings:
+            end_prompts = self.settings.get_common_prompts_by_position("end")
+            for cp in end_prompts:
+                result.append(", ")
+                if cp.insert_break_after:
+                    result.append("BREAK ")
+                result.append(cp.content)
+
         prompt = "".join(result)
 
         # クリーンアップ
         prompt = re.sub(r',\s*,', ', ', prompt)  # 連続カンマ削除
         prompt = re.sub(r'\s+', ' ', prompt)     # 連続スペース削除
+        prompt = prompt.strip().rstrip(',')      # 先頭・末尾の空白とカンマ削除
 
-        return prompt.strip()
+        return prompt
 
     def build_all_prompts(
         self,

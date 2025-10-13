@@ -5,7 +5,7 @@
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 
 class Settings:
@@ -41,6 +41,7 @@ class Settings:
         self.local_wildcard_dir: str = self.DEFAULT_LOCAL_WILDCARD_DIR
         self.data_dir: str = self.DEFAULT_DATA_DIR
         self.exclude_patterns: list = self.DEFAULT_EXCLUDE_PATTERNS.copy()
+        self.common_prompts: List = []  # CommonPromptのリスト
 
         # 設定を読み込み
         self.load()
@@ -49,6 +50,7 @@ class Settings:
         """設定ファイルから読み込み"""
         if not self.config_path.exists():
             # 設定ファイルがない場合はデフォルト値で初期化
+            self._initialize_default_common_prompts()
             self.save()
             return
 
@@ -61,9 +63,22 @@ class Settings:
             self.data_dir = data.get('data_dir', self.DEFAULT_DATA_DIR)
             self.exclude_patterns = data.get('exclude_patterns', self.DEFAULT_EXCLUDE_PATTERNS.copy())
 
+            # 共通プロンプトを読み込み
+            common_prompts_data = data.get('common_prompts', [])
+            if common_prompts_data:
+                from models.common_prompt import CommonPrompt
+                self.common_prompts = [
+                    CommonPrompt.from_dict(cp_data)
+                    for cp_data in common_prompts_data
+                ]
+            else:
+                # データがない場合はデフォルトを初期化
+                self._initialize_default_common_prompts()
+
         except Exception as e:
             print(f"[Warning] Failed to load settings: {e}")
             # 読み込み失敗時はデフォルト値を使用
+            self._initialize_default_common_prompts()
 
     def save(self):
         """設定ファイルに保存"""
@@ -74,7 +89,8 @@ class Settings:
             'source_wildcard_dir': self.source_wildcard_dir,
             'local_wildcard_dir': self.local_wildcard_dir,
             'data_dir': self.data_dir,
-            'exclude_patterns': self.exclude_patterns
+            'exclude_patterns': self.exclude_patterns,
+            'common_prompts': [cp.to_dict() for cp in self.common_prompts]
         }
 
         with self.config_path.open('w', encoding='utf-8') as f:
@@ -119,3 +135,41 @@ class Settings:
             Pathオブジェクト
         """
         return self.get_data_dir() / "labels_metadata.json"
+
+    def _initialize_default_common_prompts(self):
+        """デフォルトの共通プロンプトを初期化"""
+        from models.common_prompt import CommonPrompt
+
+        self.common_prompts = [
+            CommonPrompt.create_default_quality_tags(),
+            CommonPrompt(
+                name="ネガティブプロンプト",
+                content="lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry",
+                enabled=False,
+                position="end",
+                insert_break_after=False
+            ),
+            CommonPrompt.create_default_lora()
+        ]
+
+    def get_enabled_common_prompts(self) -> List:
+        """有効な共通プロンプトを取得
+
+        Returns:
+            有効な共通プロンプトのリスト
+        """
+        return [cp for cp in self.common_prompts if cp.enabled]
+
+    def get_common_prompts_by_position(self, position: str) -> List:
+        """指定位置の有効な共通プロンプトを取得
+
+        Args:
+            position: 挿入位置（"start" または "end"）
+
+        Returns:
+            指定位置の有効な共通プロンプトのリスト
+        """
+        return [
+            cp for cp in self.common_prompts
+            if cp.enabled and cp.position == position
+        ]
