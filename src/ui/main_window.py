@@ -6,7 +6,7 @@ Pfft_makerのメインUIウィンドウ。
 
 from pathlib import Path
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QMessageBox,
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QMessageBox,
     QMenuBar, QMenu, QFileDialog, QStatusBar
 )
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -15,7 +15,11 @@ from PyQt6.QtGui import QAction, QKeySequence
 from .library_panel import LibraryPanel
 from .scene_editor_panel import SceneEditorPanel
 from .preview_panel import PreviewPanel
+from .update_notification_banner import UpdateNotificationBanner
 from models import Project
+from config.settings import Settings
+from core.file_sync_manager import FileSyncManager
+from utils.logger import get_logger
 
 
 class MainWindow(QMainWindow):
@@ -37,9 +41,18 @@ class MainWindow(QMainWindow):
         """初期化"""
         super().__init__()
 
+        # ロガー
+        self.logger = get_logger()
+
         # プロジェクト
         self.current_project: Project | None = None
         self.project_path: Path | None = None
+
+        # 設定
+        self.settings = Settings()
+
+        # 起動時チェック完了フラグ
+        self._startup_check_done = False
 
         # ウィンドウ設定
         self.setWindowTitle("Pfft_maker")
@@ -61,10 +74,20 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # 3カラムレイアウト
-        layout = QHBoxLayout(central_widget)
-        layout.setSpacing(0)
-        layout.setContentsMargins(0, 0, 0, 0)
+        # メインレイアウト（縦）
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # 更新通知バナー
+        self.update_banner = UpdateNotificationBanner()
+        main_layout.addWidget(self.update_banner)
+
+        # 3カラムコンテナ
+        columns_container = QWidget()
+        columns_layout = QHBoxLayout(columns_container)
+        columns_layout.setSpacing(0)
+        columns_layout.setContentsMargins(0, 0, 0, 0)
 
         # 左: ライブラリパネル (600px)
         self.library_panel = LibraryPanel()
@@ -78,9 +101,11 @@ class MainWindow(QMainWindow):
         self.preview_panel = PreviewPanel()
         self.preview_panel.setFixedWidth(550)
 
-        layout.addWidget(self.library_panel)
-        layout.addWidget(self.scene_editor)
-        layout.addWidget(self.preview_panel)
+        columns_layout.addWidget(self.library_panel)
+        columns_layout.addWidget(self.scene_editor)
+        columns_layout.addWidget(self.preview_panel)
+
+        main_layout.addWidget(columns_container)
 
     def _create_menu_bar(self):
         """メニューバー作成"""
@@ -184,6 +209,10 @@ class MainWindow(QMainWindow):
 
         # プロジェクト変更
         self.project_changed.connect(self._on_project_changed)
+
+        # 更新通知バナー
+        self.update_banner.sync_requested.connect(self._on_banner_sync_requested)
+        self.update_banner.dismissed.connect(self._on_banner_dismissed)
 
     def _create_new_project(self):
         """新規プロジェクト作成"""
@@ -327,6 +356,54 @@ class MainWindow(QMainWindow):
             "Stable Diffusion WebUI用プロンプト管理ツール\n\n"
             "Phase 4.3 - シーン編集・出力機能完了"
         )
+
+    def showEvent(self, event):
+        """ウィンドウ表示時"""
+        super().showEvent(event)
+
+        # 起動時チェック（一度だけ実行）
+        if not self._startup_check_done:
+            self._startup_check_done = True
+            self._check_library_updates()
+
+    def _check_library_updates(self):
+        """ライブラリ更新チェック"""
+        try:
+            self.logger.info("起動時のライブラリ更新チェックを開始")
+
+            # FileSyncManagerで更新チェック
+            sync_manager = FileSyncManager(self.settings)
+
+            if not sync_manager.has_updates():
+                self.logger.info("更新はありません")
+                return
+
+            # 更新情報を取得
+            updates = sync_manager.check_updates()
+            summary = sync_manager.get_update_summary()
+
+            self.logger.info(f"更新を検出:\n{summary}")
+
+            # バナー表示
+            self.update_banner.show_update(updates)
+
+            # ステータスバーにも通知
+            self.status_bar.showMessage("ライブラリに更新があります")
+
+        except Exception as e:
+            self.logger.error(f"更新チェック中にエラーが発生: {e}", exc_info=True)
+
+    def _on_banner_sync_requested(self):
+        """バナーから同期リクエスト"""
+        self.logger.info("バナーから同期がリクエストされました")
+
+        # ライブラリパネルの同期機能を呼び出す
+        self.library_panel._on_sync_files()
+
+    def _on_banner_dismissed(self):
+        """バナーが閉じられた"""
+        self.logger.info("更新通知バナーが閉じられました")
+        self.status_bar.showMessage("準備完了")
 
     def closeEvent(self, event):
         """ウィンドウクローズ時"""
