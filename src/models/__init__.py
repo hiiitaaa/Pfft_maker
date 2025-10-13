@@ -10,6 +10,7 @@ from .project import Project
 from .prompt import Prompt
 from .common_prompt import CommonPrompt
 from .custom_prompt import CustomPrompt
+from .template import ProjectTemplate, SceneTemplate, BlockTemplate
 
 __all__ = [
     'SerializableMixin',
@@ -21,4 +22,7 @@ __all__ = [
     'Prompt',
     'CommonPrompt',
     'CustomPrompt',
+    'ProjectTemplate',
+    'SceneTemplate',
+    'BlockTemplate',
 ]

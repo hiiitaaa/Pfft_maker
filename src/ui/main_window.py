@@ -19,6 +19,7 @@ from .update_notification_banner import UpdateNotificationBanner
 from models import Project
 from config.settings import Settings
 from core.file_sync_manager import FileSyncManager
+from core.template_manager import TemplateManager
 from utils.logger import get_logger
 
 
@@ -50,6 +51,11 @@ class MainWindow(QMainWindow):
 
         # 設定
         self.settings = Settings()
+
+        # テンプレートマネージャー
+        data_dir = Path.cwd() / "data"
+        data_dir.mkdir(exist_ok=True)
+        self.template_manager = TemplateManager(data_dir)
 
         # 起動時チェック完了フラグ
         self._startup_check_done = False
@@ -120,6 +126,11 @@ class MainWindow(QMainWindow):
         new_action.triggered.connect(self._on_new_project)
         file_menu.addAction(new_action)
 
+        # テンプレートから作成
+        new_from_template_action = QAction("テンプレートから作成(&T)...", self)
+        new_from_template_action.triggered.connect(self._on_new_from_template)
+        file_menu.addAction(new_from_template_action)
+
         # プロジェクトを開く
         open_action = QAction("プロジェクトを開く(&O)...", self)
         open_action.setShortcut(QKeySequence.StandardKey.Open)
@@ -137,6 +148,13 @@ class MainWindow(QMainWindow):
         save_as_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
         save_as_action.triggered.connect(self._on_save_project_as)
         file_menu.addAction(save_as_action)
+
+        file_menu.addSeparator()
+
+        # テンプレートとして保存
+        save_as_template_action = QAction("テンプレートとして保存(&M)...", self)
+        save_as_template_action.triggered.connect(self._on_save_as_template)
+        file_menu.addAction(save_as_template_action)
 
         file_menu.addSeparator()
 
@@ -347,6 +365,105 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self)
         dialog.exec()
 
+    def _on_new_from_template(self):
+        """テンプレートから新規プロジェクト作成"""
+        from .template_select_dialog import TemplateSelectDialog
+
+        # 保存確認
+        if not self._confirm_save():
+            return
+
+        # テンプレート選択ダイアログ
+        templates = self.template_manager.get_all_templates()
+
+        if not templates:
+            QMessageBox.information(
+                self,
+                "テンプレートなし",
+                "利用可能なテンプレートがありません。\n\n"
+                "先にプロジェクトを「テンプレートとして保存」してください。"
+            )
+            return
+
+        dialog = TemplateSelectDialog(templates, self)
+        dialog.template_deleted.connect(self._on_template_deleted)
+
+        if dialog.exec() == TemplateSelectDialog.DialogCode.Accepted:
+            template = dialog.get_selected_template()
+            project_name = dialog.get_project_name()
+
+            if template:
+                try:
+                    # テンプレートからプロジェクト作成
+                    self.current_project = self.template_manager.create_project_from_template(
+                        template, project_name
+                    )
+                    self.project_path = None
+                    self.scene_editor.set_project(self.current_project)
+                    self._update_title()
+                    self.status_bar.showMessage(
+                        f"テンプレート「{template.name}」からプロジェクトを作成しました"
+                    )
+                except Exception as e:
+                    self.logger.error(f"テンプレートからの作成失敗: {e}", exc_info=True)
+                    QMessageBox.critical(
+                        self,
+                        "エラー",
+                        f"テンプレートからの作成に失敗しました:\n{e}"
+                    )
+
+    def _on_save_as_template(self):
+        """テンプレートとして保存"""
+        from .template_save_dialog import TemplateSaveDialog
+
+        if not self.current_project or not self.current_project.scenes:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "保存するシーンがありません"
+            )
+            return
+
+        # テンプレート保存ダイアログ
+        dialog = TemplateSaveDialog(self)
+
+        if dialog.exec() == TemplateSaveDialog.DialogCode.Accepted:
+            name, description, template_type = dialog.get_template_info()
+
+            try:
+                # テンプレート保存
+                template = self.template_manager.save_template_from_project(
+                    self.current_project,
+                    name,
+                    description,
+                    template_type
+                )
+
+                QMessageBox.information(
+                    self,
+                    "保存完了",
+                    f"テンプレート「{template.name}」を保存しました。\n\n"
+                    f"タイプ: {template_type}\n"
+                    f"シーン数: {template.scene_count}"
+                )
+                self.status_bar.showMessage(f"テンプレートを保存しました: {name}")
+
+            except Exception as e:
+                self.logger.error(f"テンプレート保存失敗: {e}", exc_info=True)
+                QMessageBox.critical(
+                    self,
+                    "エラー",
+                    f"テンプレートの保存に失敗しました:\n{e}"
+                )
+
+    def _on_template_deleted(self, template_id: str):
+        """テンプレート削除ハンドラ"""
+        try:
+            self.template_manager.delete_template(template_id)
+            self.logger.info(f"テンプレート削除: {template_id}")
+        except Exception as e:
+            self.logger.error(f"テンプレート削除失敗: {e}", exc_info=True)
+
     def _on_about(self):
         """バージョン情報"""
         QMessageBox.about(
@@ -354,7 +471,7 @@ class MainWindow(QMainWindow):
             "Pfft_makerについて",
             "Pfft_maker v0.1.0\n\n"
             "Stable Diffusion WebUI用プロンプト管理ツール\n\n"
-            "Phase 4.3 - シーン編集・出力機能完了"
+            "Phase 5 完了 - テンプレート機能実装"
         )
 
     def showEvent(self, event):
