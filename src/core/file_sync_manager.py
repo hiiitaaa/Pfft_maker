@@ -5,11 +5,12 @@
 
 import hashlib
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional, Callable
 from datetime import datetime
 
 from config.settings import Settings
 from utils.file_utils import scan_text_files
+from utils.logger import get_logger
 
 
 class FileSyncManager:
@@ -28,6 +29,7 @@ class FileSyncManager:
         self.settings = settings
         self.source_dir = settings.get_source_dir()
         self.local_dir = settings.get_local_dir()
+        self.logger = get_logger()
 
     def check_updates(self) -> Dict[str, List[Path]]:
         """更新チェック
@@ -158,21 +160,52 @@ class FileSyncManager:
 
         return "\n".join(summary_parts)
 
-    def sync_files(self, updates: Dict[str, List[Path]] = None) -> int:
+    def sync_files(
+        self,
+        updates: Dict[str, List[Path]] = None,
+        preserve_user_labels: bool = True,
+        progress_callback: Optional[Callable[[str], None]] = None
+    ) -> Tuple[int, Optional[Dict[str, int]]]:
         """ファイルを同期
 
         Args:
             updates: 更新情報（Noneの場合は自動検出）
+            preserve_user_labels: ユーザーラベルを保持するか
+            progress_callback: 進捗コールバック
 
         Returns:
-            同期したファイル数
+            (同期したファイル数, ラベル保持統計)
         """
         if updates is None:
             updates = self.check_updates()
 
+        self.logger.info(
+            f"ファイル同期開始: 追加={len(updates['added'])}, "
+            f"更新={len(updates['modified'])}, 削除={len(updates['deleted'])}"
+        )
+
         sync_count = 0
+        label_stats = None
+
+        # ユーザーラベル保持が有効な場合、既存のプロンプトを保存
+        old_prompts = None
+        if preserve_user_labels:
+            if progress_callback:
+                progress_callback("既存のラベルデータを保存中...")
+
+            # 既存のCSVからプロンプトを読み込み
+            from core.library_manager import LibraryManager
+            manager = LibraryManager(self.settings)
+            csv_path = self.settings.get_library_csv_path()
+
+            if csv_path.exists():
+                old_prompts = manager.load_from_csv()
+                self.logger.info(f"既存プロンプト: {len(old_prompts)}件")
 
         # 追加・更新ファイルをコピー
+        if progress_callback:
+            progress_callback("ファイルを同期中...")
+
         for file_list in [updates["added"], updates["modified"]]:
             for source_file in file_list:
                 rel_path = source_file.relative_to(self.source_dir)
@@ -186,14 +219,65 @@ class FileSyncManager:
                 shutil.copy2(source_file, dest_file)
 
                 sync_count += 1
+                self.logger.debug(f"同期: {rel_path}")
 
         # 削除ファイルを削除
         for local_file in updates["deleted"]:
             if local_file.exists():
                 local_file.unlink()
                 sync_count += 1
+                rel_path = local_file.relative_to(self.local_dir)
+                self.logger.debug(f"削除: {rel_path}")
 
-        return sync_count
+        self.logger.info(f"ファイル同期完了: {sync_count}ファイル")
+
+        # ユーザーラベル保持処理
+        if preserve_user_labels and old_prompts:
+            if progress_callback:
+                progress_callback("ユーザーラベルを保持中...")
+
+            label_stats = self._preserve_user_labels_after_sync(old_prompts)
+
+        return sync_count, label_stats
+
+    def _preserve_user_labels_after_sync(
+        self,
+        old_prompts: List
+    ) -> Dict[str, int]:
+        """同期後にユーザーラベルを保持
+
+        Args:
+            old_prompts: 既存のプロンプトリスト
+
+        Returns:
+            ラベル保持統計
+        """
+        from core.library_manager import LibraryManager
+        from core.label_preserver import LabelPreserver
+
+        self.logger.info("ユーザーラベル保持処理開始")
+
+        # 新しいプロンプトを再スキャン
+        manager = LibraryManager(self.settings)
+        new_prompts = manager.scan_and_build_library()
+
+        # ラベル保持
+        preserver = LabelPreserver()
+        preserved_prompts = preserver.preserve_labels(old_prompts, new_prompts)
+
+        # 統計情報取得
+        stats = preserver.get_preservation_stats(old_prompts, preserved_prompts)
+
+        self.logger.info(
+            f"ラベル保持完了: 保持={stats['preserved']}件, "
+            f"失われた={stats['lost']}件"
+        )
+
+        # CSVに保存
+        manager.prompts = preserved_prompts
+        manager.save_to_csv()
+
+        return stats
 
     def calculate_file_hash(self, file_path: Path) -> str:
         """ファイルハッシュを計算

@@ -450,38 +450,47 @@ class LibraryPanel(QWidget):
             progress.setMinimumDuration(0)
             progress.setValue(0)
 
-            # ファイル同期
-            sync_count = sync_manager.sync_files(updates)
-
-            progress.setValue(50)
-            progress.setLabelText("ライブラリを再構築しています...")
-
-            # ライブラリ再構築
-            manager = LibraryManager(settings)
-
-            def on_progress(current, total, message):
-                if total > 0:
-                    percent = 50 + int((current / total) * 50)
-                    progress.setValue(percent)
+            # 進捗コールバック
+            def on_sync_progress(message: str):
                 progress.setLabelText(message)
                 QApplication.processEvents()
 
-            manager.scan_and_build_library(progress_callback=on_progress)
-            manager.save_to_csv()
+            # ファイル同期（ユーザーラベル保持込み）
+            self.logger.info("ファイル同期開始（ユーザーラベル保持あり）")
+            sync_count, label_stats = sync_manager.sync_files(
+                updates,
+                preserve_user_labels=True,
+                progress_callback=on_sync_progress
+            )
 
-            # UIに表示
-            prompts = manager.get_prompts()
+            progress.setValue(100)
+
+            # 新しいプロンプトをUIに表示
+            manager = LibraryManager(settings)
+            prompts = manager.load_from_csv()
             self.load_prompts(prompts)
 
             progress.close()
 
-            # 完了メッセージ
+            # 完了メッセージ（ラベル保持統計付き）
+            message = f"同期が完了しました。\n\n"
+            message += f"同期ファイル数: {sync_count}\n"
+            message += f"プロンプト数: {len(prompts)}\n"
+
+            if label_stats:
+                message += f"\n【ユーザーラベル保持】\n"
+                message += f"保持: {label_stats['preserved']}件\n"
+                if label_stats['lost'] > 0:
+                    message += f"⚠️ 失われたラベル: {label_stats['lost']}件"
+                else:
+                    message += f"✅ 全てのラベルを保持しました"
+
+            self.logger.info(f"同期完了: {sync_count}ファイル, ラベル保持: {label_stats}")
+
             QMessageBox.information(
                 self,
                 "完了",
-                f"同期が完了しました。\n\n"
-                f"同期ファイル数: {sync_count}\n"
-                f"プロンプト数: {len(prompts)}"
+                message
             )
 
         except Exception as e:
