@@ -1,13 +1,15 @@
-# Phase 4.2時点の依存関係
+# Phase 4/5の依存関係
 # 文字エンコーディング検出
 chardet==5.2.0
 
 # GUI
 PyQt6==6.6.1
 
+# AI連携 (Phase 5)
+anthropic>=0.8.1      # Claude API
+cryptography>=41.0.7  # 暗号化
+
 # 将来的に追加予定:
-# pandas==2.1.4         # CSV管理 (Phase 4.3以降)
-# watchdog==4.0.0       # ファイル監視 (Phase 4.3以降)
-# anthropic==0.8.1      # Claude API (Phase 4.3以降)
-# cryptography==41.0.7  # 暗号化 (Phase 4.3以降)
-# keyring==24.3.0       # APIキー管理 (Phase 4.3以降)
+# pandas==2.1.4         # CSV管理
+# watchdog==4.0.0       # ファイル監視
+# keyring==24.3.0       # OSキーチェーン統合
