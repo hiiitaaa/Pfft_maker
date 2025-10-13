@@ -6,11 +6,14 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QListWidget, QListWidgetItem, QTabWidget,
-    QLineEdit, QCheckBox
+    QLineEdit, QCheckBox, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from pathlib import Path
 
 from models import Project, Scene, Block, BlockType, Prompt
+from config.settings import Settings
+from core.custom_prompt_manager import CustomPromptManager
 
 
 class SceneEditorPanel(QWidget):
@@ -31,6 +34,10 @@ class SceneEditorPanel(QWidget):
 
         self.project: Project | None = None
         self.current_scene: Scene | None = None
+
+        # 自作プロンプト管理
+        settings = Settings()
+        self.custom_prompt_manager = CustomPromptManager(settings.get_data_dir())
 
         # UI構築
         self._create_ui()
@@ -92,6 +99,35 @@ class SceneEditorPanel(QWidget):
         button_layout.addWidget(delete_btn)
 
         layout.addLayout(button_layout)
+
+        # ライブラリに保存ボタン
+        save_button_layout = QHBoxLayout()
+        save_button_layout.addStretch()
+
+        self.save_to_library_btn = QPushButton("💾 ライブラリに保存")
+        self.save_to_library_btn.clicked.connect(self._on_save_to_library)
+        self.save_to_library_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:pressed {
+                background-color: #0D47A1;
+            }
+            QPushButton:disabled {
+                background-color: #BDBDBD;
+            }
+        """)
+        save_button_layout.addWidget(self.save_to_library_btn)
+
+        layout.addLayout(save_button_layout)
 
         # シーン管理ボタン
         scene_button_layout = QHBoxLayout()
@@ -405,3 +441,71 @@ class SceneEditorPanel(QWidget):
                     content=""
                 )
                 scene.add_block(break_block)
+
+    def _on_save_to_library(self):
+        """ライブラリに保存ボタンクリック"""
+        # 選択されているブロックを取得
+        current_item = self.block_list.currentItem()
+        if not current_item or not self.current_scene:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "保存するブロックを選択してください。"
+            )
+            return
+
+        block_id = current_item.data(Qt.ItemDataRole.UserRole)
+
+        # ブロックを検索
+        block = None
+        for b in self.current_scene.blocks:
+            if b.block_id == block_id:
+                block = b
+                break
+
+        if not block:
+            return
+
+        # BREAKブロックとワイルドカードブロックは保存不可
+        if block.type == BlockType.BREAK:
+            QMessageBox.warning(
+                self,
+                "保存不可",
+                "BREAKブロックは保存できません。"
+            )
+            return
+
+        if block.type == BlockType.WILDCARD:
+            QMessageBox.warning(
+                self,
+                "保存不可",
+                "ワイルドカードブロックは保存できません。\n固定テキストブロックのみ保存可能です。"
+            )
+            return
+
+        # 固定テキストブロックのみ保存可能
+        if block.type != BlockType.FIXED_TEXT:
+            QMessageBox.warning(
+                self,
+                "保存不可",
+                "このブロックは保存できません。"
+            )
+            return
+
+        # 保存ダイアログを表示
+        from .custom_prompt_dialog import CustomPromptDialog
+
+        dialog = CustomPromptDialog(
+            custom_prompt_manager=self.custom_prompt_manager,
+            prompt_text=block.content,
+            parent=self
+        )
+
+        if dialog.exec():
+            # 保存成功
+            saved_prompt = dialog.get_saved_prompt()
+            if saved_prompt:
+                # 使用履歴を記録（プロジェクト名を取得）
+                project_name = self.project.name if self.project else "不明"
+                self.custom_prompt_manager.record_usage(saved_prompt.id, project_name)
+
