@@ -85,6 +85,21 @@ Pfft_makerは、Stable Diffusion WebUIのワイルドカードファイルを一
 pip install -r requirements.txt
 ```
 
+## 📚 ドキュメント
+
+### 初めての方へ
+- **[チュートリアル](docs/TUTORIAL.md)** - インストールから画像生成まで、ステップバイステップで学べます（所要時間: 約30分）
+
+### 詳細ガイド
+- **[ユーザーガイド](docs/USER_GUIDE.md)** - 全機能の詳細説明、フロー図、トラブルシューティング
+
+### 技術資料
+- [機能要件定義書](requirements.md) - 全機能の詳細仕様
+- [技術要件定義書](technical_requirements.md) - アーキテクチャ・実装詳細
+- [開発ガイド](docs/archive/CLAUDE.md) - 開発者向けガイド
+
+---
+
 ## 使用方法
 
 ### アプリケーション起動
@@ -151,12 +166,11 @@ Pfft_maker/
 3. **効率的なフォルダ構成**: 責任を明確に分離
 4. **ユーザーフロー重視**: 直感的で効率的な操作
 
-## ドキュメント
+## 実装ログ
 
-- [機能要件定義書](requirements.md)
-- [技術要件定義書](technical_requirements.md)
-- [開発ガイド](docs/archive/CLAUDE.md)
-- [実装ログ Phase 4.3](IMPLEMENTATION_LOG_PHASE4.3.md)
+- [Phase 4.3実装ログ](IMPLEMENTATION_LOG_PHASE4.3.md)
+- [AI機能実装ログ](IMPLEMENTATION_LOG_AI_FEATURES.md)
+- [FR-005テスト結果](TEST_RESULTS_FR005.md)
 
 ## 主要機能
 
