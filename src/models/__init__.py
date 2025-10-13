@@ -9,6 +9,7 @@ from .scene import Scene
 from .project import Project
 from .prompt import Prompt
 from .common_prompt import CommonPrompt
+from .custom_prompt import CustomPrompt
 
 __all__ = [
     'SerializableMixin',
@@ -19,4 +20,5 @@ __all__ = [
     'Project',
     'Prompt',
     'CommonPrompt',
+    'CustomPrompt',
 ]
