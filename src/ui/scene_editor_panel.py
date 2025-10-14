@@ -6,7 +6,8 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QListWidget, QListWidgetItem, QTabWidget,
-    QLineEdit, QCheckBox, QMessageBox
+    QLineEdit, QCheckBox, QMessageBox, QDialog, QDialogButtonBox,
+    QTextEdit
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from pathlib import Path
@@ -14,6 +15,7 @@ from pathlib import Path
 from models import Project, Scene, Block, BlockType, Prompt
 from config.settings import Settings
 from core.custom_prompt_manager import CustomPromptManager
+from core.scene_library_manager import SceneLibraryManager
 
 
 class SceneEditorPanel(QWidget):
@@ -27,6 +29,7 @@ class SceneEditorPanel(QWidget):
 
     # シグナル定義
     scene_changed = pyqtSignal(object)  # Scene
+    scene_library_updated = pyqtSignal()  # シーンライブラリが更新された
 
     def __init__(self):
         """初期化"""
@@ -38,6 +41,9 @@ class SceneEditorPanel(QWidget):
         # 自作プロンプト管理
         settings = Settings()
         self.custom_prompt_manager = CustomPromptManager(settings.get_data_dir())
+
+        # シーンライブラリ管理
+        self.scene_library_manager = SceneLibraryManager(settings.get_data_dir())
 
         # UI構築
         self._create_ui()
@@ -58,40 +64,130 @@ class SceneEditorPanel(QWidget):
         self.scene_tabs.currentChanged.connect(self._on_scene_changed)
         layout.addWidget(self.scene_tabs)
 
-        # シーン情報
+        # シーン情報 + 保存ボタン（提案2: レイアウト改善）
         info_layout = QHBoxLayout()
+
+        info_layout.addWidget(QLabel("シーン名:"))
 
         self.scene_name_edit = QLineEdit()
         self.scene_name_edit.setPlaceholderText("シーン名")
         self.scene_name_edit.textChanged.connect(self._on_scene_name_changed)
-        info_layout.addWidget(QLabel("シーン名:"))
         info_layout.addWidget(self.scene_name_edit)
 
         self.completed_checkbox = QCheckBox("完成")
         self.completed_checkbox.stateChanged.connect(self._on_completed_changed)
         info_layout.addWidget(self.completed_checkbox)
 
+        # 📚 保存ボタンを完成チェックボックスの横に配置
+        self.save_scene_btn = QPushButton("📚 保存")
+        self.save_scene_btn.clicked.connect(self._on_save_scene_to_library)
+        self.save_scene_btn.setToolTip("このシーンをライブラリに保存（後で再利用可能）")
+        self.save_scene_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45A049;
+            }
+            QPushButton:pressed {
+                background-color: #388E3C;
+            }
+        """)
+        info_layout.addWidget(self.save_scene_btn)
+
         layout.addLayout(info_layout)
+
+        # モード切り替えボタン
+        mode_layout = QHBoxLayout()
+
+        self.block_mode_btn = QPushButton("ブロックモード")
+        self.block_mode_btn.setCheckable(True)
+        self.block_mode_btn.setChecked(True)
+        self.block_mode_btn.clicked.connect(self._on_switch_to_block_mode)
+        mode_layout.addWidget(self.block_mode_btn)
+
+        self.text_mode_btn = QPushButton("テキストモード")
+        self.text_mode_btn.setCheckable(True)
+        self.text_mode_btn.clicked.connect(self._on_switch_to_text_mode)
+        mode_layout.addWidget(self.text_mode_btn)
+
+        mode_layout.addStretch()
+        layout.addLayout(mode_layout)
+
+        # ブロックモード用UI
+        self.block_mode_widget = QWidget()
+        block_mode_layout = QVBoxLayout(self.block_mode_widget)
+        block_mode_layout.setContentsMargins(0, 0, 0, 0)
 
         # ブロックリスト
         self.block_list = QListWidget()
         self.block_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        layout.addWidget(QLabel("ブロック:"))
-        layout.addWidget(self.block_list)
+        self.block_list.itemDoubleClicked.connect(self._on_block_double_clicked)
+        block_mode_layout.addWidget(QLabel("ブロック:"))
+        block_mode_layout.addWidget(self.block_list)
 
-        # ボタン
+        layout.addWidget(self.block_mode_widget)
+
+        # テキストモード用UI
+        self.text_mode_widget = QWidget()
+        text_mode_layout = QVBoxLayout(self.text_mode_widget)
+        text_mode_layout.setContentsMargins(0, 0, 0, 0)
+
+        text_mode_layout.addWidget(QLabel("プロンプト（自由編集）:"))
+
+        self.prompt_text_edit = QTextEdit()
+        self.prompt_text_edit.setPlaceholderText(
+            "プロンプトをここに貼り付けて編集してください。\n"
+            "BREAKはテキストとして入力できます。\n\n"
+            "例:\n"
+            "1girl, school uniform, kiss,\n"
+            "BREAK,\n"
+            "standing, corridor,\n"
+            "BREAK,\n"
+            "masterpiece, best quality"
+        )
+        self.prompt_text_edit.textChanged.connect(self._on_text_mode_changed)
+        text_mode_layout.addWidget(self.prompt_text_edit)
+
+        layout.addWidget(self.text_mode_widget)
+        self.text_mode_widget.hide()  # 初期は非表示
+
+        # ━━━ ブロック操作 ━━━
+        block_ops_label = QLabel("━━━ ブロック操作 ━━━")
+        block_ops_label.setStyleSheet("color: #666; font-weight: bold; margin-top: 10px;")
+        layout.addWidget(block_ops_label)
+
         button_layout = QHBoxLayout()
+
+        add_block_btn = QPushButton("✏️ ブロック追加")
+        add_block_btn.clicked.connect(self._on_add_block_manual)
+        add_block_btn.setToolTip("手動でブロックを追加（プロンプトを貼り付け可能）")
+        button_layout.addWidget(add_block_btn)
+
+        paste_prompt_btn = QPushButton("📋 貼付")
+        paste_prompt_btn.clicked.connect(self._on_paste_and_split_prompt)
+        paste_prompt_btn.setToolTip("プロンプトを貼り付けて自動的にブロックに分割")
+        button_layout.addWidget(paste_prompt_btn)
 
         add_break_btn = QPushButton("+ BREAK")
         add_break_btn.clicked.connect(self._on_add_break)
         button_layout.addWidget(add_break_btn)
 
-        move_up_btn = QPushButton("↑ 上へ")
+        button_layout.addStretch()
+
+        move_up_btn = QPushButton("↑")
         move_up_btn.clicked.connect(self._on_move_up)
+        move_up_btn.setFixedWidth(40)
         button_layout.addWidget(move_up_btn)
 
-        move_down_btn = QPushButton("↓ 下へ")
+        move_down_btn = QPushButton("↓")
         move_down_btn.clicked.connect(self._on_move_down)
+        move_down_btn.setFixedWidth(40)
         button_layout.addWidget(move_down_btn)
 
         delete_btn = QPushButton("削除")
@@ -100,45 +196,32 @@ class SceneEditorPanel(QWidget):
 
         layout.addLayout(button_layout)
 
-        # ライブラリに保存ボタン
-        save_button_layout = QHBoxLayout()
-        save_button_layout.addStretch()
+        # ━━━ シーン操作 ━━━
+        scene_ops_label = QLabel("━━━ シーン操作 ━━━")
+        scene_ops_label.setStyleSheet("color: #666; font-weight: bold; margin-top: 15px;")
+        layout.addWidget(scene_ops_label)
 
-        self.save_to_library_btn = QPushButton("💾 ライブラリに保存")
-        self.save_to_library_btn.clicked.connect(self._on_save_to_library)
-        self.save_to_library_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
-            }
-            QPushButton:disabled {
-                background-color: #BDBDBD;
-            }
-        """)
-        save_button_layout.addWidget(self.save_to_library_btn)
-
-        layout.addLayout(save_button_layout)
-
-        # シーン管理ボタン
         scene_button_layout = QHBoxLayout()
 
         add_scene_btn = QPushButton("+ シーン追加")
         add_scene_btn.clicked.connect(self._on_add_scene)
         scene_button_layout.addWidget(add_scene_btn)
 
-        delete_scene_btn = QPushButton("シーン削除")
+        duplicate_scene_btn = QPushButton("📋 複製")
+        duplicate_scene_btn.clicked.connect(self._on_duplicate_scene)
+        duplicate_scene_btn.setToolTip("現在のシーンを複製")
+        scene_button_layout.addWidget(duplicate_scene_btn)
+
+        delete_scene_btn = QPushButton("削除")
         delete_scene_btn.clicked.connect(self._on_delete_scene)
         scene_button_layout.addWidget(delete_scene_btn)
+
+        scene_button_layout.addStretch()
+
+        self.insert_scene_btn = QPushButton("📚 挿入")
+        self.insert_scene_btn.clicked.connect(self._on_insert_scene_from_library)
+        self.insert_scene_btn.setToolTip("ライブラリから保存済みシーンを挿入")
+        scene_button_layout.addWidget(self.insert_scene_btn)
 
         layout.addLayout(scene_button_layout)
 
@@ -185,8 +268,13 @@ class SceneEditorPanel(QWidget):
         self.scene_name_edit.setText(self.current_scene.scene_name)
         self.completed_checkbox.setChecked(self.current_scene.is_completed)
 
-        # ブロックリストを更新
-        self._update_block_list()
+        # 現在のモードに応じて更新
+        if self.text_mode_btn.isChecked():
+            # テキストモード: ブロックからテキストを生成
+            self._sync_blocks_to_text()
+        else:
+            # ブロックモード: ブロックリストを更新
+            self._update_block_list()
 
         # プレビュー更新
         self.scene_changed.emit(self.current_scene)
@@ -282,8 +370,75 @@ class SceneEditorPanel(QWidget):
         Args:
             state: チェック状態
         """
-        if self.current_scene:
-            self.current_scene.is_completed = (state == Qt.CheckState.Checked.value)
+        if not self.current_scene:
+            return
+
+        is_completed = (state == Qt.CheckState.Checked.value)
+        self.current_scene.is_completed = is_completed
+
+        # ✅ 完成にチェックした時だけ保存を促す
+        if is_completed:
+            self._prompt_save_to_library()
+
+    def _on_block_double_clicked(self, item: QListWidgetItem):
+        """ブロックダブルクリック時の処理
+
+        Args:
+            item: クリックされたアイテム
+        """
+        if not self.current_scene:
+            return
+
+        block_id = item.data(Qt.ItemDataRole.UserRole)
+
+        # ブロックを検索
+        block = None
+        for b in self.current_scene.blocks:
+            if b.block_id == block_id:
+                block = b
+                break
+
+        if not block:
+            return
+
+        # ブロック編集ダイアログを表示
+        from .block_edit_dialog import BlockEditDialog
+
+        dialog = BlockEditDialog(block.type, block.content, self)
+
+        if dialog.exec():
+            # 編集内容を反映
+            block_type, content = dialog.get_block_info()
+            block.type = block_type
+            block.content = content
+
+            # リスト更新
+            self._update_block_list()
+            self.scene_changed.emit(self.current_scene)
+
+    def _on_add_block_manual(self):
+        """手動でブロックを追加"""
+        if not self.current_scene:
+            return
+
+        # ブロック編集ダイアログを表示（新規作成モード）
+        from .block_edit_dialog import BlockEditDialog
+
+        dialog = BlockEditDialog(BlockType.FIXED_TEXT, "", self)
+
+        if dialog.exec():
+            # 新しいブロックを作成
+            block_type, content = dialog.get_block_info()
+
+            block = Block(
+                block_id=self.current_scene.get_next_block_id(),
+                type=block_type,
+                content=content
+            )
+
+            self.current_scene.add_block(block)
+            self._update_block_list()
+            self.scene_changed.emit(self.current_scene)
 
     def _on_add_break(self):
         """BREAK追加"""
@@ -375,6 +530,53 @@ class SceneEditorPanel(QWidget):
         # 前のシーンを選択
         if current_index > 0:
             self.scene_tabs.setCurrentIndex(current_index - 1)
+
+    def _on_duplicate_scene(self):
+        """シーン複製"""
+        if not self.project or not self.current_scene:
+            return
+
+        # 元のシーン名を保存（メッセージ用）
+        original_scene_name = self.current_scene.scene_name
+
+        # 新しいシーンIDを取得
+        scene_id = self.project.get_next_scene_id()
+
+        # 現在のシーンを複製
+        duplicated_scene = Scene(
+            scene_id=scene_id,
+            scene_name=f"{self.current_scene.scene_name} (コピー)",
+            is_completed=False  # 複製したシーンは未完成とする
+        )
+
+        # ブロックを全てコピー
+        for original_block in self.current_scene.blocks:
+            # ブロックを深くコピー
+            new_block = Block(
+                block_id=duplicated_scene.get_next_block_id(),
+                type=original_block.type,
+                content=original_block.content,
+                source=original_block.source.copy() if original_block.source else None,
+                is_common=original_block.is_common
+            )
+            duplicated_scene.add_block(new_block)
+
+        # プロジェクトに追加
+        self.project.add_scene(duplicated_scene)
+
+        # タブ追加
+        self.scene_tabs.addTab(QWidget(), f"シーン{duplicated_scene.scene_id}")
+
+        # 新しいシーン（複製）を選択
+        self.scene_tabs.setCurrentIndex(len(self.project.scenes) - 1)
+
+        # 成功メッセージ
+        QMessageBox.information(
+            self,
+            "複製完了",
+            f"シーン「{original_scene_name}」を複製しました。\n\n"
+            f"新しいシーン: {duplicated_scene.scene_name}"
+        )
 
     def next_scene(self):
         """次のシーンへ"""
@@ -508,4 +710,367 @@ class SceneEditorPanel(QWidget):
                 # 使用履歴を記録（プロジェクト名を取得）
                 project_name = self.project.name if self.project else "不明"
                 self.custom_prompt_manager.record_usage(saved_prompt.id, project_name)
+
+    def _prompt_save_to_library(self):
+        """シーン保存を促すダイアログ（✅完成チェック時に呼ばれる）"""
+        if not self.current_scene or not self.current_scene.blocks:
+            return
+
+        # ユーザーに保存するか確認
+        reply = QMessageBox.question(
+            self,
+            "シーンを保存",
+            f"シーン「{self.current_scene.scene_name}」を\n"
+            f"ライブラリに保存しますか？\n\n"
+            f"後で別のプロジェクトで再利用できます。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No  # デフォルトは「いいえ」
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self._on_save_scene_to_library()
+
+    def _on_save_scene_to_library(self):
+        """シーンをライブラリに保存"""
+        if not self.current_scene:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "保存するシーンがありません。"
+            )
+            return
+
+        # ブロック数チェック
+        if not self.current_scene.blocks:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "ブロックが1つもありません。\nシーンにブロックを追加してから保存してください。"
+            )
+            return
+
+        # 保存ダイアログを表示
+        from .scene_save_dialog import SceneSaveDialog
+
+        dialog = SceneSaveDialog(
+            scene=self.current_scene,
+            scene_library_manager=self.scene_library_manager,
+            parent=self
+        )
+
+        if dialog.exec():
+            # 保存成功
+            saved_item = dialog.get_saved_item()
+            if saved_item:
+                QMessageBox.information(
+                    self,
+                    "保存完了",
+                    f"シーン「{saved_item.name}」をライブラリに保存しました。"
+                )
+                # ライブラリパネルの更新を通知
+                self.scene_library_updated.emit()
+
+    def _on_insert_scene_from_library(self):
+        """ライブラリからシーンを挿入"""
+        if not self.project:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "プロジェクトが開かれていません。"
+            )
+            return
+
+        # ライブラリが空でないか確認
+        items = self.scene_library_manager.get_all_items()
+        if not items:
+            QMessageBox.information(
+                self,
+                "ライブラリが空です",
+                "シーンライブラリにシーンがありません。\n\n"
+                "先にシーンを「📚 シーンをライブラリに保存」で保存してください。"
+            )
+            return
+
+        # 選択ダイアログを表示
+        from .scene_select_dialog import SceneSelectDialog
+
+        dialog = SceneSelectDialog(
+            scene_library_manager=self.scene_library_manager,
+            parent=self
+        )
+
+        if dialog.exec() == SceneSelectDialog.DialogCode.Accepted:
+            selected_item = dialog.get_selected_item()
+            if selected_item:
+                try:
+                    # 新しいシーンIDを取得
+                    scene_id = self.project.get_next_scene_id()
+
+                    # プロジェクト名を取得
+                    project_name = self.project.name if self.project else "不明"
+
+                    # ライブラリからシーンを作成
+                    scene = self.scene_library_manager.create_scene_from_library(
+                        item=selected_item,
+                        project_name=project_name,
+                        scene_id=scene_id
+                    )
+
+                    # プロジェクトに追加
+                    self.project.add_scene(scene)
+
+                    # タブ追加
+                    self.scene_tabs.addTab(QWidget(), f"シーン{scene.scene_id}")
+
+                    # 新しいシーンを選択
+                    self.scene_tabs.setCurrentIndex(len(self.project.scenes) - 1)
+
+                    QMessageBox.information(
+                        self,
+                        "挿入完了",
+                        f"シーン「{selected_item.name}」を挿入しました。"
+                    )
+
+                except Exception as e:
+                    QMessageBox.critical(
+                        self,
+                        "エラー",
+                        f"シーンの挿入に失敗しました:\n{e}"
+                    )
+
+    def _on_paste_and_split_prompt(self):
+        """プロンプトを貼り付けて自動的にブロックに分割"""
+        if not self.current_scene:
+            return
+
+        # カスタムダイアログを作成
+        dialog = QDialog(self)
+        dialog.setWindowTitle("プロンプトから作成")
+        dialog.setMinimumWidth(600)
+        dialog.setMinimumHeight(400)
+
+        layout = QVBoxLayout(dialog)
+
+        # 説明ラベル
+        info_label = QLabel(
+            "プロンプトを貼り付けてください。\n"
+            "「BREAK」で自動的に分割されます。\n\n"
+            "例: 1girl, school uniform, BREAK, standing, corridor, BREAK, masterpiece"
+        )
+        layout.addWidget(info_label)
+
+        # テキスト入力エリア
+        text_edit = QTextEdit()
+        text_edit.setPlaceholderText("プロンプトをここに貼り付け...")
+        layout.addWidget(text_edit)
+
+        # ボタン
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        # ダイアログ表示
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # 入力されたテキストを取得
+        prompt_text = text_edit.toPlainText().strip()
+
+        if not prompt_text:
+            QMessageBox.warning(
+                self,
+                "入力エラー",
+                "プロンプトを入力してください。"
+            )
+            return
+
+        # プロンプトを分割
+        self._split_and_add_blocks(prompt_text)
+
+    def _split_and_add_blocks(self, prompt_text: str):
+        """プロンプトを分割してブロックに追加
+
+        Args:
+            prompt_text: 分割するプロンプト
+        """
+        if not self.current_scene:
+            return
+
+        # 既存のブロック数を記録
+        original_block_count = len(self.current_scene.blocks)
+
+        # BREAKで分割（大文字小文字を区別しない）
+        import re
+        segments = re.split(r',\s*BREAK\s*,?|BREAK', prompt_text, flags=re.IGNORECASE)
+
+        added_blocks = 0
+
+        for i, segment in enumerate(segments):
+            segment = segment.strip().strip(',').strip()
+
+            if not segment:
+                continue
+
+            # ワイルドカード形式かチェック
+            is_wildcard = segment.startswith('__') and segment.endswith('__')
+
+            if is_wildcard:
+                # ワイルドカードブロック
+                block = Block(
+                    block_id=self.current_scene.get_next_block_id(),
+                    type=BlockType.WILDCARD,
+                    content=segment
+                )
+            else:
+                # 固定テキストブロック
+                block = Block(
+                    block_id=self.current_scene.get_next_block_id(),
+                    type=BlockType.FIXED_TEXT,
+                    content=segment
+                )
+
+            self.current_scene.add_block(block)
+            added_blocks += 1
+
+            # 最後のセグメント以外はBREAKを追加
+            if i < len(segments) - 1 and segment:
+                break_block = Block(
+                    block_id=self.current_scene.get_next_block_id(),
+                    type=BlockType.BREAK,
+                    content=""
+                )
+                self.current_scene.add_block(break_block)
+
+        # UI更新
+        self._update_block_list()
+        self.scene_changed.emit(self.current_scene)
+
+        # 完了メッセージ
+        QMessageBox.information(
+            self,
+            "分割完了",
+            f"{added_blocks}個のブロックを追加しました。"
+        )
+
+    def _on_switch_to_block_mode(self):
+        """ブロックモードに切り替え"""
+        # テキストモードからブロックモードに切り替える前に、テキストを保存
+        if not self.block_mode_btn.isChecked():
+            self._sync_text_to_blocks()
+
+        self.block_mode_btn.setChecked(True)
+        self.text_mode_btn.setChecked(False)
+        self.block_mode_widget.show()
+        self.text_mode_widget.hide()
+
+        # ブロックリストを更新
+        self._update_block_list()
+
+    def _on_switch_to_text_mode(self):
+        """テキストモードに切り替え"""
+        self.block_mode_btn.setChecked(False)
+        self.text_mode_btn.setChecked(True)
+        self.block_mode_widget.hide()
+        self.text_mode_widget.show()
+
+        # ブロックからテキストを生成
+        self._sync_blocks_to_text()
+
+    def _sync_blocks_to_text(self):
+        """ブロックからテキストエリアに同期"""
+        if not self.current_scene:
+            return
+
+        # ブロックからプロンプトテキストを生成
+        from core.prompt_builder import PromptBuilder
+        builder = PromptBuilder()
+
+        # BREAKを保持したまま1行のプロンプトを構築
+        prompt = builder.build_scene_prompt(self.current_scene, apply_common_prompts=False)
+
+        # テキストエリアに設定（一時的にシグナルをブロック）
+        self.prompt_text_edit.blockSignals(True)
+        self.prompt_text_edit.setPlainText(prompt)
+        self.prompt_text_edit.blockSignals(False)
+
+    def _sync_text_to_blocks(self):
+        """テキストエリアからブロックに同期"""
+        if not self.current_scene:
+            return
+
+        prompt_text = self.prompt_text_edit.toPlainText().strip()
+
+        if not prompt_text:
+            # 空の場合は全ブロック削除
+            self.current_scene.blocks.clear()
+            return
+
+        # 既存のブロックをクリア
+        self.current_scene.blocks.clear()
+
+        # テキストをパースしてブロックに変換
+        self._split_and_add_blocks(prompt_text)
+
+    def _on_text_mode_changed(self):
+        """テキストモードでの編集時"""
+        # リアルタイムでプレビューを更新
+        if not self.current_scene:
+            return
+
+        # 一時的にブロックに同期してプレビュー更新
+        prompt_text = self.prompt_text_edit.toPlainText().strip()
+
+        if prompt_text:
+            # プレビュー用の一時シーンを作成
+            from models import Scene
+            temp_scene = Scene(
+                scene_id=self.current_scene.scene_id,
+                scene_name=self.current_scene.scene_name,
+                is_completed=self.current_scene.is_completed
+            )
+
+            # テキストをパースして一時シーンにブロックを追加
+            import re
+            segments = re.split(r',\s*BREAK\s*,?|BREAK', prompt_text, flags=re.IGNORECASE)
+
+            for i, segment in enumerate(segments):
+                segment = segment.strip().strip(',').strip()
+
+                if not segment:
+                    continue
+
+                # ワイルドカード形式かチェック
+                is_wildcard = segment.startswith('__') and segment.endswith('__')
+
+                if is_wildcard:
+                    block = Block(
+                        block_id=temp_scene.get_next_block_id(),
+                        type=BlockType.WILDCARD,
+                        content=segment
+                    )
+                else:
+                    block = Block(
+                        block_id=temp_scene.get_next_block_id(),
+                        type=BlockType.FIXED_TEXT,
+                        content=segment
+                    )
+
+                temp_scene.add_block(block)
+
+                # 最後のセグメント以外はBREAKを追加
+                if i < len(segments) - 1 and segment:
+                    break_block = Block(
+                        block_id=temp_scene.get_next_block_id(),
+                        type=BlockType.BREAK,
+                        content=""
+                    )
+                    temp_scene.add_block(break_block)
+
+            # プレビュー更新
+            self.scene_changed.emit(temp_scene)
+        else:
+            self.scene_changed.emit(self.current_scene)
 

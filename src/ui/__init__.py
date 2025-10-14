@@ -8,6 +8,7 @@ from .library_panel import LibraryPanel
 from .scene_editor_panel import SceneEditorPanel
 from .preview_panel import PreviewPanel
 from .update_notification_banner import UpdateNotificationBanner
+from .block_edit_dialog import BlockEditDialog
 
 __all__ = [
     'MainWindow',
@@ -15,4 +16,5 @@ __all__ = [
     'SceneEditorPanel',
     'PreviewPanel',
     'UpdateNotificationBanner',
+    'BlockEditDialog',
 ]

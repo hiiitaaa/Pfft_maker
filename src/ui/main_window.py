@@ -175,6 +175,14 @@ class MainWindow(QMainWindow):
         # ツールメニュー
         tools_menu = menubar.addMenu("ツール(&T)")
 
+        # シーン一括保存（提案3: バッチ保存）
+        batch_save_action = QAction("シーンを一括保存(&B)...", self)
+        batch_save_action.setShortcut(QKeySequence("Ctrl+Shift+B"))
+        batch_save_action.triggered.connect(self._on_batch_save_scenes)
+        tools_menu.addAction(batch_save_action)
+
+        tools_menu.addSeparator()
+
         # 設定
         settings_action = QAction("設定(&S)...", self)
         settings_action.setShortcut(QKeySequence("Ctrl+,"))
@@ -223,6 +231,16 @@ class MainWindow(QMainWindow):
         # エディタ → プレビュー
         self.scene_editor.scene_changed.connect(
             self.preview_panel.update_preview
+        )
+
+        # エディタ → ライブラリパネル（シーンライブラリ更新）
+        self.scene_editor.scene_library_updated.connect(
+            self.library_panel.reload_scene_library
+        )
+
+        # ライブラリ → エディタ（シーン挿入）
+        self.library_panel.scene_selected.connect(
+            self._on_scene_library_item_selected
         )
 
         # プロジェクト変更
@@ -463,6 +481,93 @@ class MainWindow(QMainWindow):
             self.logger.info(f"テンプレート削除: {template_id}")
         except Exception as e:
             self.logger.error(f"テンプレート削除失敗: {e}", exc_info=True)
+
+    def _on_scene_library_item_selected(self, scene_item):
+        """シーンライブラリアイテムが選択された時
+
+        Args:
+            scene_item: SceneLibraryItemオブジェクト
+        """
+        from models.scene_library import SceneLibraryItem
+
+        if not isinstance(scene_item, SceneLibraryItem):
+            return
+
+        if not self.current_project:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "プロジェクトが開かれていません"
+            )
+            return
+
+        try:
+            # 新しいシーンIDを取得
+            scene_id = self.current_project.get_next_scene_id()
+
+            # プロジェクト名を取得
+            project_name = self.current_project.name if self.current_project else "不明"
+
+            # ライブラリからシーンを作成
+            scene = self.scene_editor.scene_library_manager.create_scene_from_library(
+                item=scene_item,
+                project_name=project_name,
+                scene_id=scene_id
+            )
+
+            # プロジェクトに追加
+            self.current_project.add_scene(scene)
+
+            # シーンエディタを更新
+            self.scene_editor.set_project(self.current_project)
+
+            # ステータスバーに通知
+            self.status_bar.showMessage(f"シーン「{scene_item.name}」を挿入しました")
+
+        except Exception as e:
+            self.logger.error(f"シーン挿入エラー: {e}", exc_info=True)
+            QMessageBox.critical(
+                self,
+                "エラー",
+                f"シーンの挿入に失敗しました:\n{e}"
+            )
+
+    def _on_batch_save_scenes(self):
+        """シーン一括保存（提案3: バッチ保存）"""
+        from .batch_scene_save_dialog import BatchSceneSaveDialog
+
+        if not self.current_project:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "プロジェクトが開かれていません"
+            )
+            return
+
+        # 完成済みシーンを取得
+        completed_scenes = [s for s in self.current_project.scenes if s.is_completed]
+
+        if not completed_scenes:
+            QMessageBox.information(
+                self,
+                "シーンなし",
+                "完成したシーンがありません。\n\n"
+                "シーンに「✅ 完成」チェックを入れてください。"
+            )
+            return
+
+        # バッチ保存ダイアログを表示
+        dialog = BatchSceneSaveDialog(
+            scenes=completed_scenes,
+            scene_library_manager=self.scene_editor.scene_library_manager,
+            parent=self
+        )
+
+        if dialog.exec() == BatchSceneSaveDialog.DialogCode.Accepted:
+            saved_count = dialog.get_saved_count()
+            self.status_bar.showMessage(f"{saved_count}個のシーンをライブラリに保存しました")
+            # ライブラリパネルを更新
+            self.library_panel.reload_scene_library()
 
     def _on_about(self):
         """バージョン情報"""
