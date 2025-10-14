@@ -49,7 +49,7 @@ class SceneEditorPanel(QWidget):
         self._create_ui()
 
     def _create_ui(self):
-        """UI構築"""
+        """UI構築（新設計：テキストエディタ中心）"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
@@ -64,7 +64,7 @@ class SceneEditorPanel(QWidget):
         self.scene_tabs.currentChanged.connect(self._on_scene_changed)
         layout.addWidget(self.scene_tabs)
 
-        # シーン情報 + 保存ボタン（提案2: レイアウト改善）
+        # シーン情報 + ライブラリ保存ボタン
         info_layout = QHBoxLayout()
 
         info_layout.addWidget(QLabel("シーン名:"))
@@ -78,8 +78,8 @@ class SceneEditorPanel(QWidget):
         self.completed_checkbox.stateChanged.connect(self._on_completed_changed)
         info_layout.addWidget(self.completed_checkbox)
 
-        # 📚 保存ボタンを完成チェックボックスの横に配置
-        self.save_scene_btn = QPushButton("📚 保存")
+        # 📚 ライブラリ保存ボタン
+        self.save_scene_btn = QPushButton("📚 ライブラリ保存")
         self.save_scene_btn.clicked.connect(self._on_save_scene_to_library)
         self.save_scene_btn.setToolTip("このシーンをライブラリに保存（後で再利用可能）")
         self.save_scene_btn.setStyleSheet("""
@@ -102,99 +102,53 @@ class SceneEditorPanel(QWidget):
 
         layout.addLayout(info_layout)
 
-        # モード切り替えボタン
-        mode_layout = QHBoxLayout()
-
-        self.block_mode_btn = QPushButton("ブロックモード")
-        self.block_mode_btn.setCheckable(True)
-        self.block_mode_btn.setChecked(True)
-        self.block_mode_btn.clicked.connect(self._on_switch_to_block_mode)
-        mode_layout.addWidget(self.block_mode_btn)
-
-        self.text_mode_btn = QPushButton("テキストモード")
-        self.text_mode_btn.setCheckable(True)
-        self.text_mode_btn.clicked.connect(self._on_switch_to_text_mode)
-        mode_layout.addWidget(self.text_mode_btn)
-
-        mode_layout.addStretch()
-        layout.addLayout(mode_layout)
-
-        # ブロックモード用UI
-        self.block_mode_widget = QWidget()
-        block_mode_layout = QVBoxLayout(self.block_mode_widget)
-        block_mode_layout.setContentsMargins(0, 0, 0, 0)
-
-        # ブロックリスト
-        self.block_list = QListWidget()
-        self.block_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        self.block_list.itemDoubleClicked.connect(self._on_block_double_clicked)
-        block_mode_layout.addWidget(QLabel("ブロック:"))
-        block_mode_layout.addWidget(self.block_list)
-
-        layout.addWidget(self.block_mode_widget)
-
-        # テキストモード用UI
-        self.text_mode_widget = QWidget()
-        text_mode_layout = QVBoxLayout(self.text_mode_widget)
-        text_mode_layout.setContentsMargins(0, 0, 0, 0)
-
-        text_mode_layout.addWidget(QLabel("プロンプト（自由編集）:"))
+        # プロンプトエディタ（常に表示）
+        editor_label = QLabel("プロンプト編集:")
+        editor_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(editor_label)
 
         self.prompt_text_edit = QTextEdit()
         self.prompt_text_edit.setPlaceholderText(
-            "プロンプトをここに貼り付けて編集してください。\n"
-            "BREAKはテキストとして入力できます。\n\n"
+            "プロンプトをここに入力・編集してください。\n"
+            "ライブラリからクリックでカーソル位置に挿入できます。\n\n"
             "例:\n"
             "1girl, school uniform, kiss,\n"
             "BREAK,\n"
             "standing, corridor,\n"
             "BREAK,\n"
-            "masterpiece, best quality"
+            "masterpiece, best quality\n\n"
+            "編集後は「💾 シーンに保存」ボタンをクリックしてください。"
         )
-        self.prompt_text_edit.textChanged.connect(self._on_text_mode_changed)
-        text_mode_layout.addWidget(self.prompt_text_edit)
+        layout.addWidget(self.prompt_text_edit)
 
-        layout.addWidget(self.text_mode_widget)
-        self.text_mode_widget.hide()  # 初期は非表示
+        # 💾 シーンに保存ボタン（重要！）
+        save_button_layout = QHBoxLayout()
+        save_button_layout.addStretch()
 
-        # ━━━ ブロック操作 ━━━
-        block_ops_label = QLabel("━━━ ブロック操作 ━━━")
-        block_ops_label.setStyleSheet("color: #666; font-weight: bold; margin-top: 10px;")
-        layout.addWidget(block_ops_label)
+        self.save_to_scene_btn = QPushButton("💾 シーンに保存")
+        self.save_to_scene_btn.clicked.connect(self._on_save_editor_to_scene)
+        self.save_to_scene_btn.setToolTip("エディタの内容をシーンに保存してプレビューに反映")
+        self.save_to_scene_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 12pt;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:pressed {
+                background-color: #0D47A1;
+            }
+        """)
+        save_button_layout.addWidget(self.save_to_scene_btn)
+        save_button_layout.addStretch()
 
-        button_layout = QHBoxLayout()
-
-        add_block_btn = QPushButton("✏️ ブロック追加")
-        add_block_btn.clicked.connect(self._on_add_block_manual)
-        add_block_btn.setToolTip("手動でブロックを追加（プロンプトを貼り付け可能）")
-        button_layout.addWidget(add_block_btn)
-
-        paste_prompt_btn = QPushButton("📋 貼付")
-        paste_prompt_btn.clicked.connect(self._on_paste_and_split_prompt)
-        paste_prompt_btn.setToolTip("プロンプトを貼り付けて自動的にブロックに分割")
-        button_layout.addWidget(paste_prompt_btn)
-
-        add_break_btn = QPushButton("+ BREAK")
-        add_break_btn.clicked.connect(self._on_add_break)
-        button_layout.addWidget(add_break_btn)
-
-        button_layout.addStretch()
-
-        move_up_btn = QPushButton("↑")
-        move_up_btn.clicked.connect(self._on_move_up)
-        move_up_btn.setFixedWidth(40)
-        button_layout.addWidget(move_up_btn)
-
-        move_down_btn = QPushButton("↓")
-        move_down_btn.clicked.connect(self._on_move_down)
-        move_down_btn.setFixedWidth(40)
-        button_layout.addWidget(move_down_btn)
-
-        delete_btn = QPushButton("削除")
-        delete_btn.clicked.connect(self._on_delete_block)
-        button_layout.addWidget(delete_btn)
-
-        layout.addLayout(button_layout)
+        layout.addLayout(save_button_layout)
 
         # ━━━ シーン操作 ━━━
         scene_ops_label = QLabel("━━━ シーン操作 ━━━")
@@ -268,15 +222,10 @@ class SceneEditorPanel(QWidget):
         self.scene_name_edit.setText(self.current_scene.scene_name)
         self.completed_checkbox.setChecked(self.current_scene.is_completed)
 
-        # 現在のモードに応じて更新
-        if self.text_mode_btn.isChecked():
-            # テキストモード: ブロックからテキストを生成
-            self._sync_blocks_to_text()
-        else:
-            # ブロックモード: ブロックリストを更新
-            self._update_block_list()
+        # シーンの内容をテキストエディタに表示
+        self._sync_blocks_to_text()
 
-        # プレビュー更新
+        # プレビュー更新（保存済みシーンを表示）
         self.scene_changed.emit(self.current_scene)
 
     def _update_block_list(self):
@@ -299,7 +248,7 @@ class SceneEditorPanel(QWidget):
             self.block_list.addItem(item)
 
     def insert_prompt_as_fixed_text(self, prompt: Prompt):
-        """プロンプトを固定テキストブロックとして挿入
+        """プロンプトをカーソル位置に挿入（新設計）
 
         Args:
             prompt: プロンプトオブジェクト
@@ -307,24 +256,16 @@ class SceneEditorPanel(QWidget):
         if not self.current_scene:
             return
 
-        # 固定テキストブロック作成
-        block = Block(
-            block_id=self.current_scene.get_next_block_id(),
-            type=BlockType.FIXED_TEXT,
-            content=prompt.prompt,
-            source={
-                "prompt_id": prompt.id,
-                "source_file": prompt.source_file,
-                "label_ja": prompt.label_ja
-            }
-        )
+        # テキストエディタのカーソル位置にプロンプトを挿入
+        cursor = self.prompt_text_edit.textCursor()
+        cursor.insertText(prompt.prompt)
 
-        self.current_scene.add_block(block)
-        self._update_block_list()
-        self.scene_changed.emit(self.current_scene)
+        # カーソル位置を更新して、続けて入力できるようにする
+        self.prompt_text_edit.setTextCursor(cursor)
+        self.prompt_text_edit.setFocus()
 
     def insert_wildcard_block(self, wildcard_path: str):
-        """ワイルドカードブロックを挿入
+        """ワイルドカードをカーソル位置に挿入（新設計）
 
         Args:
             wildcard_path: ワイルドカードパス（例: __posing/arm__）
@@ -332,17 +273,13 @@ class SceneEditorPanel(QWidget):
         if not self.current_scene:
             return
 
-        # ワイルドカードブロック作成
-        block = Block(
-            block_id=self.current_scene.get_next_block_id(),
-            type=BlockType.WILDCARD,
-            content=wildcard_path,
-            source={"wildcard_path": wildcard_path}
-        )
+        # テキストエディタのカーソル位置にワイルドカードを挿入
+        cursor = self.prompt_text_edit.textCursor()
+        cursor.insertText(wildcard_path)
 
-        self.current_scene.add_block(block)
-        self._update_block_list()
-        self.scene_changed.emit(self.current_scene)
+        # カーソル位置を更新して、続けて入力できるようにする
+        self.prompt_text_edit.setTextCursor(cursor)
+        self.prompt_text_edit.setFocus()
 
     def _on_scene_changed(self, index: int):
         """シーンタブ変更時
@@ -379,6 +316,84 @@ class SceneEditorPanel(QWidget):
         # ✅ 完成にチェックした時だけ保存を促す
         if is_completed:
             self._prompt_save_to_library()
+
+    def _on_save_editor_to_scene(self):
+        """エディタの内容をシーンに保存（新設計の核心メソッド）"""
+        if not self.current_scene:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "シーンが選択されていません。"
+            )
+            return
+
+        # テキストエディタの内容を取得
+        prompt_text = self.prompt_text_edit.toPlainText().strip()
+
+        if not prompt_text:
+            # 空の場合は確認
+            reply = QMessageBox.question(
+                self,
+                "確認",
+                "エディタが空です。シーンのブロックを全て削除しますか？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.current_scene.blocks.clear()
+                self.scene_changed.emit(self.current_scene)
+                QMessageBox.information(self, "保存完了", "シーンを空にしました。")
+            return
+
+        # 既存のブロックをクリア
+        self.current_scene.blocks.clear()
+
+        # テキストをパースしてブロックに変換
+        import re
+        segments = re.split(r',\s*BREAK\s*,?|BREAK', prompt_text, flags=re.IGNORECASE)
+
+        for i, segment in enumerate(segments):
+            segment = segment.strip().strip(',').strip()
+
+            if not segment:
+                continue
+
+            # ワイルドカード形式かチェック
+            is_wildcard = segment.startswith('__') and segment.endswith('__')
+
+            if is_wildcard:
+                block = Block(
+                    block_id=self.current_scene.get_next_block_id(),
+                    type=BlockType.WILDCARD,
+                    content=segment
+                )
+            else:
+                block = Block(
+                    block_id=self.current_scene.get_next_block_id(),
+                    type=BlockType.FIXED_TEXT,
+                    content=segment
+                )
+
+            self.current_scene.add_block(block)
+
+            # 最後のセグメント以外はBREAKを追加
+            if i < len(segments) - 1 and segment:
+                break_block = Block(
+                    block_id=self.current_scene.get_next_block_id(),
+                    type=BlockType.BREAK,
+                    content=""
+                )
+                self.current_scene.add_block(break_block)
+
+        # プレビュー更新（保存されたシーンを表示）
+        self.scene_changed.emit(self.current_scene)
+
+        # 成功メッセージ（小さなトースト風に）
+        QMessageBox.information(
+            self,
+            "保存完了",
+            f"シーン「{self.current_scene.scene_name}」に保存しました。\n\n"
+            f"ブロック数: {len(self.current_scene.blocks)}"
+        )
 
     def _on_block_double_clicked(self, item: QListWidgetItem):
         """ブロックダブルクリック時の処理
