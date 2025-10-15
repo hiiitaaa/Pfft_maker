@@ -27,6 +27,11 @@ class Settings:
         "node_modules"   # Node.jsパッケージ
     ]
 
+    # LM Studio デフォルト設定
+    DEFAULT_LM_STUDIO_ENDPOINT = "http://localhost:1234/v1"
+    DEFAULT_LM_STUDIO_MODEL = "local-model"
+    DEFAULT_LM_STUDIO_MAX_CONCURRENT = 2  # VRAM 16GBで安全な同時実行数
+
     def __init__(self, config_path: Optional[Path] = None):
         """初期化
 
@@ -42,6 +47,11 @@ class Settings:
         self.data_dir: str = self.DEFAULT_DATA_DIR
         self.exclude_patterns: list = self.DEFAULT_EXCLUDE_PATTERNS.copy()
         self.common_prompts: List = []  # CommonPromptのリスト
+
+        # LM Studio設定
+        self.lm_studio_endpoint: str = self.DEFAULT_LM_STUDIO_ENDPOINT
+        self.lm_studio_model: str = self.DEFAULT_LM_STUDIO_MODEL
+        self.lm_studio_max_concurrent: int = self.DEFAULT_LM_STUDIO_MAX_CONCURRENT
 
         # 設定を読み込み
         self.load()
@@ -62,6 +72,11 @@ class Settings:
             self.local_wildcard_dir = data.get('local_wildcard_dir', self.DEFAULT_LOCAL_WILDCARD_DIR)
             self.data_dir = data.get('data_dir', self.DEFAULT_DATA_DIR)
             self.exclude_patterns = data.get('exclude_patterns', self.DEFAULT_EXCLUDE_PATTERNS.copy())
+
+            # LM Studio設定を読み込み
+            self.lm_studio_endpoint = data.get('lm_studio_endpoint', self.DEFAULT_LM_STUDIO_ENDPOINT)
+            self.lm_studio_model = data.get('lm_studio_model', self.DEFAULT_LM_STUDIO_MODEL)
+            self.lm_studio_max_concurrent = data.get('lm_studio_max_concurrent', self.DEFAULT_LM_STUDIO_MAX_CONCURRENT)
 
             # 共通プロンプトを読み込み
             common_prompts_data = data.get('common_prompts', [])
@@ -90,7 +105,10 @@ class Settings:
             'local_wildcard_dir': self.local_wildcard_dir,
             'data_dir': self.data_dir,
             'exclude_patterns': self.exclude_patterns,
-            'common_prompts': [cp.to_dict() for cp in self.common_prompts]
+            'common_prompts': [cp.to_dict() for cp in self.common_prompts],
+            'lm_studio_endpoint': self.lm_studio_endpoint,
+            'lm_studio_model': self.lm_studio_model,
+            'lm_studio_max_concurrent': self.lm_studio_max_concurrent
         }
 
         with self.config_path.open('w', encoding='utf-8') as f:

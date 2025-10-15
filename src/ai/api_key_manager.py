@@ -153,6 +153,15 @@ class APIKeyManager:
         # ディレクトリ作成
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
+        # Windows: 既存ファイルの隠し属性を一時解除
+        if self.key_file.exists():
+            try:
+                import ctypes
+                FILE_ATTRIBUTE_NORMAL = 0x80
+                ctypes.windll.kernel32.SetFileAttributesW(str(self.key_file), FILE_ATTRIBUTE_NORMAL)
+            except:
+                pass
+
         # JSON保存
         self.key_file.write_text(
             json.dumps(keys, indent=2),
@@ -185,6 +194,10 @@ class APIKeyManager:
             # Claude API接続テスト
             try:
                 import anthropic
+            except ImportError:
+                return False, "anthropicモジュールがインストールされていません\n\n以下のコマンドでインストールしてください:\npip install anthropic"
+
+            try:
                 client = anthropic.Anthropic(api_key=api_key)
 
                 # シンプルなリクエストでテスト
@@ -196,8 +209,50 @@ class APIKeyManager:
 
                 return True, "接続成功"
 
+            except anthropic.AuthenticationError as e:
+                return False, f"認証エラー: APIキーが無効です\n\n詳細: {str(e)}"
+            except anthropic.RateLimitError as e:
+                return False, f"レート制限エラー: リクエスト回数が上限を超えました\n\n詳細: {str(e)}"
+            except anthropic.APIConnectionError as e:
+                return False, f"接続エラー: APIサーバーに接続できません\n\nネットワーク接続を確認してください\n\n詳細: {str(e)}"
+            except anthropic.APIStatusError as e:
+                return False, f"APIエラー (ステータス: {e.status_code}): {str(e)}"
             except Exception as e:
-                return False, f"接続失敗: {str(e)}"
+                import traceback
+                error_detail = traceback.format_exc()
+                return False, f"予期しないエラー: {str(e)}\n\n詳細:\n{error_detail}"
+
+        elif service == "openai":
+            # OpenAI API接続テスト
+            try:
+                import openai
+            except ImportError:
+                return False, "openaiモジュールがインストールされていません\n\n以下のコマンドでインストールしてください:\npip install openai"
+
+            try:
+                client = openai.OpenAI(api_key=api_key)
+
+                # シンプルなリクエストでテスト
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    max_tokens=10,
+                    messages=[{"role": "user", "content": "test"}]
+                )
+
+                return True, "接続成功"
+
+            except openai.AuthenticationError as e:
+                return False, f"認証エラー: APIキーが無効です\n\n詳細: {str(e)}"
+            except openai.RateLimitError as e:
+                return False, f"レート制限エラー: リクエスト回数が上限を超えました\n\n詳細: {str(e)}"
+            except openai.APIConnectionError as e:
+                return False, f"接続エラー: APIサーバーに接続できません\n\nネットワーク接続を確認してください\n\n詳細: {str(e)}"
+            except openai.APIStatusError as e:
+                return False, f"APIエラー (ステータス: {e.status_code}): {str(e)}"
+            except Exception as e:
+                import traceback
+                error_detail = traceback.format_exc()
+                return False, f"予期しないエラー: {str(e)}\n\n詳細:\n{error_detail}"
 
         elif service == "lm_studio":
             # LM Studio接続テスト（OpenAI互換API）

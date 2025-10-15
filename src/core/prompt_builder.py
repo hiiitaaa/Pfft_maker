@@ -63,7 +63,11 @@ class PromptBuilder:
             if block.type == BlockType.BREAK:
                 result.append(", BREAK")
             else:
+                # 改行を除去（1シーン = 1行にするため）
                 content = block.content.strip()
+                content = re.sub(r'[\r\n]+', ' ', content)  # 改行をスペースに置換
+                content = re.sub(r'\s+', ' ', content).strip()  # 連続スペースを1つに
+
                 if i == 0 and not result:
                     # 最初のブロック（共通プロンプトがない場合）
                     result.append(content)

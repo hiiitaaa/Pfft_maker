@@ -156,6 +156,11 @@ class MainWindow(QMainWindow):
         save_as_template_action.triggered.connect(self._on_save_as_template)
         file_menu.addAction(save_as_template_action)
 
+        # 作品として保存
+        save_as_project_lib_action = QAction("作品として保存(&P)...", self)
+        save_as_project_lib_action.triggered.connect(self._on_save_as_project_library)
+        file_menu.addAction(save_as_project_lib_action)
+
         file_menu.addSeparator()
 
         # プロンプト出力
@@ -228,9 +233,9 @@ class MainWindow(QMainWindow):
             self.scene_editor.insert_wildcard_block
         )
 
-        # エディタ → プレビュー
+        # エディタ → プレビュー（全シーン表示）
         self.scene_editor.scene_changed.connect(
-            self.preview_panel.update_preview
+            self._on_scene_changed_update_all_preview
         )
 
         # エディタ → ライブラリパネル（シーンライブラリ更新）
@@ -241,6 +246,21 @@ class MainWindow(QMainWindow):
         # ライブラリ → エディタ（シーン挿入）
         self.library_panel.scene_selected.connect(
             self._on_scene_library_item_selected
+        )
+
+        # ライブラリ → プロジェクト（作品全体挿入）
+        self.library_panel.project_selected.connect(
+            self._on_project_library_item_selected
+        )
+
+        # ライブラリ → プロジェクト（作品内個別シーン挿入）
+        self.library_panel.project_scene_selected.connect(
+            self._on_project_library_scene_selected
+        )
+
+        # エディタ → 作品保存
+        self.scene_editor.save_project_requested.connect(
+            self._on_save_as_project_library
         )
 
         # プロジェクト変更
@@ -359,6 +379,15 @@ class MainWindow(QMainWindow):
     def _on_project_changed(self):
         """プロジェクト変更時"""
         self._update_title()
+
+    def _on_scene_changed_update_all_preview(self, scene):
+        """シーン変更時にプレビューを全シーン表示で更新
+
+        Args:
+            scene: 変更されたシーン（使用しない）
+        """
+        if self.current_project:
+            self.preview_panel.update_all_scenes(self.current_project)
 
     def _on_export_prompts(self):
         """プロンプト出力"""
@@ -523,6 +552,170 @@ class MainWindow(QMainWindow):
 
             # ステータスバーに通知
             self.status_bar.showMessage(f"シーン「{scene_item.name}」を挿入しました")
+
+        except Exception as e:
+            self.logger.error(f"シーン挿入エラー: {e}", exc_info=True)
+            QMessageBox.critical(
+                self,
+                "エラー",
+                f"シーンの挿入に失敗しました:\n{e}"
+            )
+
+    def _on_save_as_project_library(self):
+        """作品として保存（作品ライブラリ）"""
+        from .project_save_dialog import ProjectSaveDialog
+
+        if not self.current_project:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "プロジェクトが開かれていません"
+            )
+            return
+
+        if not self.current_project.scenes:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "保存するシーンがありません"
+            )
+            return
+
+        # 作品保存ダイアログを表示
+        dialog = ProjectSaveDialog(
+            project=self.current_project,
+            project_library_manager=self.library_panel.project_library_manager,
+            parent=self
+        )
+
+        if dialog.exec() == ProjectSaveDialog.DialogCode.Accepted:
+            saved_item = dialog.get_saved_item()
+            if saved_item:
+                self.status_bar.showMessage(
+                    f"作品「{saved_item.name}」をライブラリに保存しました "
+                    f"({saved_item.get_scene_count()}シーン)"
+                )
+                # ライブラリパネルを更新
+                self.library_panel.reload_project_library()
+
+    def _on_project_library_item_selected(self, project_item):
+        """作品ライブラリアイテムが選択された時（全シーン一括挿入）
+
+        Args:
+            project_item: ProjectLibraryItemオブジェクト
+        """
+        from models.project_library import ProjectLibraryItem
+
+        if not isinstance(project_item, ProjectLibraryItem):
+            return
+
+        if not self.current_project:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "プロジェクトが開かれていません"
+            )
+            return
+
+        try:
+            # 挿入確認
+            scene_count = project_item.get_scene_count()
+            reply = QMessageBox.question(
+                self,
+                "作品全体を挿入",
+                f"作品「{project_item.name}」の全シーン（{scene_count}シーン）を\n"
+                f"現在のプロジェクトの末尾に挿入しますか？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+            # 新しいシーンの開始ID
+            start_scene_id = self.current_project.get_next_scene_id()
+
+            # プロジェクト名を取得
+            project_name = self.current_project.name if self.current_project else "不明"
+
+            # ライブラリから複数のシーンを作成
+            scenes = self.library_panel.project_library_manager.create_scenes_from_library(
+                item=project_item,
+                project_name=project_name,
+                start_scene_id=start_scene_id
+            )
+
+            # 全シーンをプロジェクトに追加
+            for scene in scenes:
+                self.current_project.add_scene(scene)
+
+            # シーンエディタを更新
+            self.scene_editor.set_project(self.current_project)
+
+            # ライブラリパネルを更新（使用履歴反映）
+            self.library_panel.reload_project_library()
+
+            # ステータスバーに通知
+            self.status_bar.showMessage(
+                f"作品「{project_item.name}」の{len(scenes)}シーンを挿入しました"
+            )
+
+        except Exception as e:
+            self.logger.error(f"作品挿入エラー: {e}", exc_info=True)
+            QMessageBox.critical(
+                self,
+                "エラー",
+                f"作品の挿入に失敗しました:\n{e}"
+            )
+
+    def _on_project_library_scene_selected(self, project_item, scene_index: int):
+        """作品ライブラリ内の個別シーンが選択された時
+
+        Args:
+            project_item: ProjectLibraryItemオブジェクト
+            scene_index: シーンのインデックス
+        """
+        from models.project_library import ProjectLibraryItem
+
+        if not isinstance(project_item, ProjectLibraryItem):
+            return
+
+        if not self.current_project:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "プロジェクトが開かれていません"
+            )
+            return
+
+        try:
+            # 新しいシーンID
+            scene_id = self.current_project.get_next_scene_id()
+
+            # プロジェクト名を取得
+            project_name = self.current_project.name if self.current_project else "不明"
+
+            # ライブラリから単一のシーンを作成
+            scene = self.library_panel.project_library_manager.get_single_scene_from_library(
+                item=project_item,
+                scene_index=scene_index,
+                project_name=project_name,
+                scene_id=scene_id
+            )
+
+            # プロジェクトに追加
+            self.current_project.add_scene(scene)
+
+            # シーンエディタを更新
+            self.scene_editor.set_project(self.current_project)
+
+            # ライブラリパネルを更新（使用履歴反映）
+            self.library_panel.reload_project_library()
+
+            # ステータスバーに通知
+            scene_name = project_item.scenes[scene_index].name
+            self.status_bar.showMessage(
+                f"作品「{project_item.name}」からシーン「{scene_name}」を挿入しました"
+            )
 
         except Exception as e:
             self.logger.error(f"シーン挿入エラー: {e}", exc_info=True)

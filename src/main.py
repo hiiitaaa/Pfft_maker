@@ -30,6 +30,12 @@ def main():
         app.setApplicationName("Pfft_maker")
         app.setOrganizationName("Pfft_maker Development Team")
         app.setApplicationVersion("0.1.0")
+
+        # 日本語フォント設定（文字化け対策）
+        from PyQt6.QtGui import QFont
+        font = QFont("Yu Gothic UI", 9)  # Windows 10/11の標準日本語フォント
+        app.setFont(font)
+
         logger.info("Qtアプリケーション初期化完了")
 
         # メインウィンドウ表示

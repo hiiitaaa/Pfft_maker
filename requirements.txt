@@ -6,7 +6,8 @@ chardet==5.2.0
 PyQt6==6.6.1
 
 # AI連携 (Phase 5)
-anthropic>=0.8.1      # Claude API
+anthropic>=0.69.0     # Claude API (2025-01最新版)
+openai>=2.3.0         # OpenAI API (ChatGPT)
 cryptography>=41.0.7  # 暗号化
 
 # 将来的に追加予定:

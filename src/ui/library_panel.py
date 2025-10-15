@@ -14,8 +14,10 @@ from typing import List
 from models import Prompt
 from models.custom_prompt import CustomPrompt
 from models.scene_library import SceneLibraryItem
+from models.project_library import ProjectLibraryItem
 from core.custom_prompt_manager import CustomPromptManager
 from core.scene_library_manager import SceneLibraryManager
+from core.project_library_manager import ProjectLibraryManager
 from config.settings import Settings
 from utils.logger import get_logger
 
@@ -33,6 +35,8 @@ class LibraryPanel(QWidget):
     prompt_selected = pyqtSignal(object)  # Prompt (固定テキストとして挿入)
     wildcard_selected = pyqtSignal(str)   # str (ワイルドカードパスとして挿入)
     scene_selected = pyqtSignal(object)   # SceneLibraryItem (シーン挿入)
+    project_selected = pyqtSignal(object)  # ProjectLibraryItem (作品全体挿入)
+    project_scene_selected = pyqtSignal(object, int)  # ProjectLibraryItem, scene_index (作品内の個別シーン挿入)
 
     def __init__(self):
         """初期化"""
@@ -52,6 +56,10 @@ class LibraryPanel(QWidget):
         self.scene_library_manager = SceneLibraryManager(settings.get_data_dir())
         self.scene_library_items: List[SceneLibraryItem] = []
 
+        # 作品ライブラリ管理
+        self.project_library_manager = ProjectLibraryManager(settings.get_data_dir())
+        self.project_library_items: List[ProjectLibraryItem] = []
+
         # UI構築
         self._create_ui()
 
@@ -65,6 +73,9 @@ class LibraryPanel(QWidget):
 
         # シーンライブラリを読み込み
         self._load_scene_library()
+
+        # 作品ライブラリを読み込み
+        self._load_project_library()
 
         # ライブラリを自動読み込み（CSVが存在する場合）
         self._auto_load_library()
@@ -97,6 +108,10 @@ class LibraryPanel(QWidget):
         # タブ3: シーンライブラリ（提案4: 新規追加）
         self.scene_library_tab = self._create_scene_library_tab()
         self.tab_widget.addTab(self.scene_library_tab, "🎬シーンライブラリ")
+
+        # タブ4: 作品ライブラリ（複数シーンをまとめた作品）
+        self.project_library_tab = self._create_project_library_tab()
+        self.tab_widget.addTab(self.project_library_tab, "📚作品ライブラリ")
 
         # ステータス
         self.status_label = QLabel("ライブラリ: 0件")
@@ -1121,15 +1136,17 @@ class LibraryPanel(QWidget):
 
     def _on_manage_custom_prompts(self):
         """自作プロンプト管理ボタンクリック"""
-        from PyQt6.QtWidgets import QMessageBox
+        from .custom_prompt_manager_dialog import CustomPromptManagerDialog
 
-        # TODO: 管理ダイアログを実装（Phase 3）
-        QMessageBox.information(
-            self,
-            "管理機能",
-            "自作プロンプトの管理機能は今後実装予定です。\n\n"
-            "現在は右クリックメニューから編集・削除が可能です。"
+        dialog = CustomPromptManagerDialog(
+            custom_prompt_manager=self.custom_prompt_manager,
+            parent=self
         )
+
+        dialog.exec()
+
+        # ダイアログを閉じた後、UIを更新
+        self._load_custom_prompts()
 
     def _on_custom_item_double_clicked(self, item: QTreeWidgetItem, column: int):
         """自作プロンプトツリーのアイテムダブルクリック時
@@ -1392,4 +1409,380 @@ class LibraryPanel(QWidget):
         self._update_scene_recent()
 
         self.logger.info(f"シーン挿入: {scene_item.name}")
+
+    # ========================================
+    # 作品ライブラリ関連（複数シーンをまとめた作品）
+    # ========================================
+
+    def _create_project_library_tab(self):
+        """作品ライブラリタブを作成（複数シーン管理）"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(10)
+
+        # タイトルと説明
+        info_frame = QFrame()
+        info_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        info_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f0f8ff;
+                border: 1px solid #4682b4;
+                border-radius: 4px;
+                padding: 8px;
+            }
+        """)
+        info_layout = QVBoxLayout(info_frame)
+        info_layout.setSpacing(3)
+
+        info_label = QLabel(
+            "📚 作品ライブラリ：複数のシーンをまとめた「作品」を管理\n"
+            "💡 作品名をダブルクリック → 全シーン一括挿入\n"
+            "💡 個別シーン名をダブルクリック → 1シーンのみ挿入"
+        )
+        info_label.setStyleSheet("color: #333; font-size: 9pt;")
+        info_layout.addWidget(info_label)
+
+        layout.addWidget(info_frame)
+
+        # よく使う作品TOP5
+        top_frame = QFrame()
+        top_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        top_frame.setStyleSheet("""
+            QFrame {
+                background-color: #fff8dc;
+                border: 1px solid #ffa500;
+                border-radius: 4px;
+                padding: 8px;
+            }
+        """)
+        top_layout = QVBoxLayout(top_frame)
+        top_layout.setSpacing(5)
+
+        # ヘッダー（折りたたみボタン付き）
+        top_header = QHBoxLayout()
+        self.project_top_toggle_btn = QPushButton("⭐ よく使う作品 TOP5 ▼")
+        self.project_top_toggle_btn.setFlat(True)
+        self.project_top_toggle_btn.setStyleSheet("font-weight: bold; text-align: left;")
+        self.project_top_toggle_btn.clicked.connect(self._toggle_project_top)
+        top_header.addWidget(self.project_top_toggle_btn)
+        top_header.addStretch()
+        top_layout.addLayout(top_header)
+
+        # コンテンツ
+        self.project_top_content = QWidget()
+        self.project_top_layout = QVBoxLayout(self.project_top_content)
+        self.project_top_layout.setSpacing(3)
+        self.project_top_layout.setContentsMargins(10, 0, 0, 0)
+        top_layout.addWidget(self.project_top_content)
+
+        layout.addWidget(top_frame)
+
+        # 最近使った作品
+        recent_frame = QFrame()
+        recent_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        recent_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f0fff0;
+                border: 1px solid #90ee90;
+                border-radius: 4px;
+                padding: 8px;
+            }
+        """)
+        recent_layout = QVBoxLayout(recent_frame)
+        recent_layout.setSpacing(5)
+
+        # ヘッダー（折りたたみボタン付き）
+        recent_header = QHBoxLayout()
+        self.project_recent_toggle_btn = QPushButton("🕒 最近使った作品 ▼")
+        self.project_recent_toggle_btn.setFlat(True)
+        self.project_recent_toggle_btn.setStyleSheet("font-weight: bold; text-align: left;")
+        self.project_recent_toggle_btn.clicked.connect(self._toggle_project_recent)
+        recent_header.addWidget(self.project_recent_toggle_btn)
+        recent_header.addStretch()
+        recent_layout.addLayout(recent_header)
+
+        # コンテンツ
+        self.project_recent_content = QWidget()
+        self.project_recent_layout = QVBoxLayout(self.project_recent_content)
+        self.project_recent_layout.setSpacing(3)
+        self.project_recent_layout.setContentsMargins(10, 0, 0, 0)
+        recent_layout.addWidget(self.project_recent_content)
+
+        layout.addWidget(recent_frame)
+
+        # 検索バー
+        self.project_search_bar = QLineEdit()
+        self.project_search_bar.setPlaceholderText("作品を検索...")
+        self.project_search_bar.textChanged.connect(self._on_project_search_input)
+        layout.addWidget(self.project_search_bar)
+
+        # 全作品一覧ツリー（階層表示: 作品 > シーン）
+        self.project_tree = QTreeWidget()
+        self.project_tree.setHeaderLabels(["作品名 / シーン名", "カテゴリ", "シーン数", "使用回数"])
+        self.project_tree.setColumnWidth(0, 250)
+        self.project_tree.setColumnWidth(1, 100)
+        self.project_tree.setColumnWidth(2, 80)
+        self.project_tree.setColumnWidth(3, 80)
+        self.project_tree.itemDoubleClicked.connect(self._on_project_item_double_clicked)
+        layout.addWidget(self.project_tree)
+
+        # 作品ライブラリステータス
+        self.project_status_label = QLabel("作品ライブラリ: 0件")
+        self.project_status_label.setStyleSheet("color: gray; font-size: 9pt;")
+        layout.addWidget(self.project_status_label)
+
+        return tab
+
+    def _toggle_project_top(self):
+        """よく使う作品TOP5の表示/非表示を切り替え"""
+        is_visible = self.project_top_content.isVisible()
+        self.project_top_content.setVisible(not is_visible)
+
+        if is_visible:
+            self.project_top_toggle_btn.setText("⭐ よく使う作品 TOP5 ▶")
+        else:
+            self.project_top_toggle_btn.setText("⭐ よく使う作品 TOP5 ▼")
+
+    def _toggle_project_recent(self):
+        """最近使った作品の表示/非表示を切り替え"""
+        is_visible = self.project_recent_content.isVisible()
+        self.project_recent_content.setVisible(not is_visible)
+
+        if is_visible:
+            self.project_recent_toggle_btn.setText("🕒 最近使った作品 ▶")
+        else:
+            self.project_recent_toggle_btn.setText("🕒 最近使った作品 ▼")
+
+    def _load_project_library(self):
+        """作品ライブラリを読み込み"""
+        try:
+            self.project_library_items = self.project_library_manager.get_all_items()
+            self.logger.info(f"作品ライブラリ読み込み: {len(self.project_library_items)}件")
+
+            # UI更新
+            self._update_project_tree()
+            self._update_project_top()
+            self._update_project_recent()
+        except Exception as e:
+            self.logger.error(f"作品ライブラリ読み込みエラー: {e}", exc_info=True)
+            self.project_library_items = []
+
+    def reload_project_library(self):
+        """作品ライブラリを再読み込み（保存後に呼び出す）"""
+        self._load_project_library()
+
+    def _update_project_top(self):
+        """よく使う作品TOP5を更新"""
+        # 既存のボタンをクリア
+        while self.project_top_layout.count():
+            item = self.project_top_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # よく使う作品を取得（TOP5）
+        most_used = self.project_library_manager.get_most_used(limit=5)
+
+        if not most_used:
+            no_data_label = QLabel("まだ保存された作品がありません")
+            no_data_label.setStyleSheet("color: gray; font-style: italic;")
+            self.project_top_layout.addWidget(no_data_label)
+            return
+
+        for project_item in most_used:
+            btn_layout = QHBoxLayout()
+
+            # 作品ボタン
+            scene_count = project_item.get_scene_count()
+            btn = QPushButton(f"📚 {project_item.name} ({project_item.usage_count}回 / {scene_count}シーン)")
+            btn.setStyleSheet("""
+                QPushButton {
+                    text-align: left;
+                    padding: 4px 8px;
+                    background-color: white;
+                    border: 1px solid #ddd;
+                    border-radius: 3px;
+                }
+                QPushButton:hover {
+                    background-color: #fff8dc;
+                    border-color: #ffa500;
+                }
+            """)
+            btn.clicked.connect(lambda checked, p=project_item: self._insert_project_all(p))
+            btn_layout.addWidget(btn)
+
+            self.project_top_layout.addLayout(btn_layout)
+
+    def _update_project_recent(self):
+        """最近使った作品を更新"""
+        # 既存のボタンをクリア
+        while self.project_recent_layout.count():
+            item = self.project_recent_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # 最近使った作品を取得（last_usedでソート、TOP5）
+        recent_used = self.project_library_manager.get_recently_used(limit=5)
+
+        if not recent_used:
+            no_data_label = QLabel("まだ使用された作品がありません")
+            no_data_label.setStyleSheet("color: gray; font-style: italic;")
+            self.project_recent_layout.addWidget(no_data_label)
+            return
+
+        for project_item in recent_used:
+            btn_layout = QHBoxLayout()
+
+            # 作品ボタン
+            scene_count = project_item.get_scene_count()
+            last_used_str = project_item.last_used.strftime("%m/%d %H:%M")
+            btn = QPushButton(f"📚 {project_item.name} ({last_used_str} / {scene_count}シーン)")
+            btn.setStyleSheet("""
+                QPushButton {
+                    text-align: left;
+                    padding: 4px 8px;
+                    background-color: white;
+                    border: 1px solid #ddd;
+                    border-radius: 3px;
+                }
+                QPushButton:hover {
+                    background-color: #f0fff0;
+                    border-color: #90ee90;
+                }
+            """)
+            btn.clicked.connect(lambda checked, p=project_item: self._insert_project_all(p))
+            btn_layout.addWidget(btn)
+
+            self.project_recent_layout.addLayout(btn_layout)
+
+    def _on_project_search_input(self, text: str):
+        """作品検索入力時
+
+        Args:
+            text: 検索クエリ
+        """
+        self._update_project_tree()
+
+    def _update_project_tree(self):
+        """作品ツリーを更新（階層表示: 作品 > シーン）"""
+        self.project_tree.clear()
+
+        query = self.project_search_bar.text().strip().lower()
+
+        # フィルタリング
+        filtered = self.project_library_items
+        if query:
+            filtered = [p for p in filtered if p.matches_search(query)]
+
+        if not filtered:
+            no_data = QTreeWidgetItem(["作品がありません", "", "", ""])
+            self.project_tree.addTopLevelItem(no_data)
+            self.project_status_label.setText("作品ライブラリ: 0件")
+            return
+
+        # カテゴリごとにグループ化
+        categories = {}
+        for project_item in filtered:
+            category = project_item.category or "その他"
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(project_item)
+
+        # カテゴリごとに表示
+        for category, projects in sorted(categories.items()):
+            category_item = QTreeWidgetItem([f"📁 {category} ({len(projects)})", "", "", ""])
+            category_item.setExpanded(True)
+            self.project_tree.addTopLevelItem(category_item)
+
+            # 作品を使用回数順にソート
+            sorted_projects = sorted(projects, key=lambda p: p.usage_count, reverse=True)
+
+            for project_item in sorted_projects:
+                scene_count = project_item.get_scene_count()
+                # 作品ノード
+                project_tree_item = QTreeWidgetItem([
+                    f"📚 {project_item.name}",
+                    project_item.category,
+                    f"{scene_count}",
+                    f"{project_item.usage_count}回"
+                ])
+                # 作品全体を示すデータを保存
+                project_tree_item.setData(0, Qt.ItemDataRole.UserRole, {
+                    "type": "project",
+                    "item": project_item
+                })
+                project_tree_item.setExpanded(False)  # デフォルトは折りたたみ
+                category_item.addChild(project_tree_item)
+
+                # シーンノード（作品の子として表示）
+                for scene_index, scene_item in enumerate(project_item.scenes):
+                    block_count = len(scene_item.block_templates)
+                    scene_tree_item = QTreeWidgetItem([
+                        f"  🎬 {scene_item.name}",
+                        "",
+                        f"{block_count}ブロック",
+                        ""
+                    ])
+                    # 個別シーンを示すデータを保存
+                    scene_tree_item.setData(0, Qt.ItemDataRole.UserRole, {
+                        "type": "scene",
+                        "project_item": project_item,
+                        "scene_index": scene_index
+                    })
+                    project_tree_item.addChild(scene_tree_item)
+
+        # ステータス更新
+        if query:
+            self.project_status_label.setText(
+                f"検索結果: {len(filtered)}件 / {len(self.project_library_items)}件"
+            )
+        else:
+            self.project_status_label.setText(f"作品ライブラリ: {len(self.project_library_items)}件")
+
+    def _on_project_item_double_clicked(self, item: QTreeWidgetItem, column: int):
+        """作品ツリーのアイテムダブルクリック時
+
+        Args:
+            item: クリックされたアイテム
+            column: カラム番号
+        """
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+
+        if not data or not isinstance(data, dict):
+            return
+
+        # 作品全体の場合 → 全シーン一括挿入
+        if data.get("type") == "project":
+            project_item = data["item"]
+            self._insert_project_all(project_item)
+
+        # 個別シーンの場合 → 1シーンのみ挿入
+        elif data.get("type") == "scene":
+            project_item = data["project_item"]
+            scene_index = data["scene_index"]
+            self._insert_project_scene(project_item, scene_index)
+
+    def _insert_project_all(self, project_item: ProjectLibraryItem):
+        """作品全体を挿入（全シーン一括）
+
+        Args:
+            project_item: 挿入する作品ライブラリアイテム
+        """
+        # シグナル発行（全シーン一括挿入）
+        self.project_selected.emit(project_item)
+
+        self.logger.info(f"作品全体挿入: {project_item.name} ({project_item.get_scene_count()}シーン)")
+
+    def _insert_project_scene(self, project_item: ProjectLibraryItem, scene_index: int):
+        """作品内の個別シーンを挿入
+
+        Args:
+            project_item: 作品ライブラリアイテム
+            scene_index: シーンのインデックス
+        """
+        # シグナル発行（個別シーン挿入）
+        self.project_scene_selected.emit(project_item, scene_index)
+
+        scene_name = project_item.scenes[scene_index].name
+        self.logger.info(f"作品内シーン挿入: {project_item.name}[{scene_index}] - {scene_name}")
 

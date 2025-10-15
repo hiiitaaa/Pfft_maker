@@ -30,6 +30,7 @@ class SceneEditorPanel(QWidget):
     # シグナル定義
     scene_changed = pyqtSignal(object)  # Scene
     scene_library_updated = pyqtSignal()  # シーンライブラリが更新された
+    save_project_requested = pyqtSignal()  # 作品保存が要求された
 
     def __init__(self):
         """初期化"""
@@ -54,14 +55,76 @@ class SceneEditorPanel(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
 
-        # タイトル
+        # タイトルとシーン操作ボタンを横並びに
+        title_layout = QHBoxLayout()
+
         title_label = QLabel("シーン編集")
         title_label.setStyleSheet("font-size: 14pt; font-weight: bold;")
-        layout.addWidget(title_label)
+        title_layout.addWidget(title_label)
+
+        title_layout.addStretch()
+
+        # シーン操作ボタン群
+        add_scene_btn = QPushButton("+ シーン追加")
+        add_scene_btn.clicked.connect(self._on_add_scene)
+        title_layout.addWidget(add_scene_btn)
+
+        duplicate_scene_btn = QPushButton("📋 複製")
+        duplicate_scene_btn.clicked.connect(self._on_duplicate_scene)
+        duplicate_scene_btn.setToolTip("現在のシーンを複製")
+        title_layout.addWidget(duplicate_scene_btn)
+
+        delete_scene_btn = QPushButton("削除")
+        delete_scene_btn.clicked.connect(self._on_delete_scene)
+        title_layout.addWidget(delete_scene_btn)
+
+        self.insert_scene_btn = QPushButton("シーン読み込み")
+        self.insert_scene_btn.clicked.connect(self._on_load_scene_from_library)
+        self.insert_scene_btn.setToolTip("ライブラリから保存済みシーンをプロンプト編集エリアに読み込み")
+        title_layout.addWidget(self.insert_scene_btn)
+
+        layout.addLayout(title_layout)
+
+        # 作品名入力
+        project_name_layout = QHBoxLayout()
+        project_name_layout.addWidget(QLabel("作品名:"))
+
+        self.project_name_edit = QLineEdit()
+        self.project_name_edit.setPlaceholderText("作品の名前を入力")
+        self.project_name_edit.textChanged.connect(self._on_project_name_changed)
+        project_name_layout.addWidget(self.project_name_edit)
+
+        # 💾 作品を保存ボタン
+        self.save_project_btn = QPushButton("💾 作品を保存")
+        self.save_project_btn.clicked.connect(self._on_save_project_to_library)
+        self.save_project_btn.setToolTip("作品全体を保存（全シーンまとめて保存・後で読み込み可能）")
+        self.save_project_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:pressed {
+                background-color: #E65100;
+            }
+        """)
+        project_name_layout.addWidget(self.save_project_btn)
+
+        layout.addLayout(project_name_layout)
 
         # シーンタブ
         self.scene_tabs = QTabWidget()
+        self.scene_tabs.setMovable(True)  # ドラッグ&ドロップで順番変更可能
+        self.scene_tabs.setTabsClosable(False)  # 閉じるボタンは非表示
         self.scene_tabs.currentChanged.connect(self._on_scene_changed)
+        # タブの順序変更をプロジェクトに反映
+        self.scene_tabs.tabBar().tabMoved.connect(self._on_tab_moved)
         layout.addWidget(self.scene_tabs)
 
         # シーン情報 + ライブラリ保存ボタン
@@ -74,14 +137,12 @@ class SceneEditorPanel(QWidget):
         self.scene_name_edit.textChanged.connect(self._on_scene_name_changed)
         info_layout.addWidget(self.scene_name_edit)
 
-        self.completed_checkbox = QCheckBox("完成")
-        self.completed_checkbox.stateChanged.connect(self._on_completed_changed)
-        info_layout.addWidget(self.completed_checkbox)
+        info_layout.addStretch()
 
         # 📚 ライブラリ保存ボタン
-        self.save_scene_btn = QPushButton("📚 ライブラリ保存")
+        self.save_scene_btn = QPushButton("📚 シーンをテンプレート保存")
         self.save_scene_btn.clicked.connect(self._on_save_scene_to_library)
-        self.save_scene_btn.setToolTip("このシーンをライブラリに保存（後で再利用可能）")
+        self.save_scene_btn.setToolTip("このシーン単体をテンプレートとして保存（後で再利用可能）")
         self.save_scene_btn.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
@@ -102,32 +163,13 @@ class SceneEditorPanel(QWidget):
 
         layout.addLayout(info_layout)
 
-        # プロンプトエディタ（常に表示）
-        editor_label = QLabel("プロンプト編集:")
-        editor_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(editor_label)
-
-        self.prompt_text_edit = QTextEdit()
-        self.prompt_text_edit.setPlaceholderText(
-            "プロンプトをここに入力・編集してください。\n"
-            "ライブラリからクリックでカーソル位置に挿入できます。\n\n"
-            "例:\n"
-            "1girl, school uniform, kiss,\n"
-            "BREAK,\n"
-            "standing, corridor,\n"
-            "BREAK,\n"
-            "masterpiece, best quality\n\n"
-            "編集後は「💾 シーンに保存」ボタンをクリックしてください。"
-        )
-        layout.addWidget(self.prompt_text_edit)
-
         # 💾 シーンに保存ボタン（重要！）
         save_button_layout = QHBoxLayout()
         save_button_layout.addStretch()
 
         self.save_to_scene_btn = QPushButton("💾 シーンに保存")
         self.save_to_scene_btn.clicked.connect(self._on_save_editor_to_scene)
-        self.save_to_scene_btn.setToolTip("エディタの内容をシーンに保存してプレビューに反映")
+        self.save_to_scene_btn.setToolTip("エディタの内容をシーンに保存")
         self.save_to_scene_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2196F3;
@@ -150,34 +192,53 @@ class SceneEditorPanel(QWidget):
 
         layout.addLayout(save_button_layout)
 
-        # ━━━ シーン操作 ━━━
-        scene_ops_label = QLabel("━━━ シーン操作 ━━━")
-        scene_ops_label.setStyleSheet("color: #666; font-weight: bold; margin-top: 15px;")
-        layout.addWidget(scene_ops_label)
+        # プロンプトエディタ（常に表示）
+        editor_label = QLabel("プロンプト編集:")
+        editor_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(editor_label)
 
-        scene_button_layout = QHBoxLayout()
+        self.prompt_text_edit = QTextEdit()
+        self.prompt_text_edit.setPlaceholderText(
+            "プロンプトをここに入力・編集してください。\n"
+            "ライブラリからクリックでカーソル位置に挿入できます。\n\n"
+            "例:\n"
+            "1girl, school uniform, kiss,\n"
+            "BREAK,\n"
+            "standing, corridor,\n"
+            "BREAK,\n"
+            "masterpiece, best quality\n\n"
+            "編集後は上の「💾 シーンに保存」ボタンをクリックしてください。"
+        )
+        layout.addWidget(self.prompt_text_edit)
 
-        add_scene_btn = QPushButton("+ シーン追加")
-        add_scene_btn.clicked.connect(self._on_add_scene)
-        scene_button_layout.addWidget(add_scene_btn)
+        # 🖼️ シーンを保存（プレビューへ表示）ボタン
+        preview_button_layout = QHBoxLayout()
+        preview_button_layout.addStretch()
 
-        duplicate_scene_btn = QPushButton("📋 複製")
-        duplicate_scene_btn.clicked.connect(self._on_duplicate_scene)
-        duplicate_scene_btn.setToolTip("現在のシーンを複製")
-        scene_button_layout.addWidget(duplicate_scene_btn)
+        self.save_to_preview_btn = QPushButton("🖼️ シーンを保存（プレビューへ表示）")
+        self.save_to_preview_btn.clicked.connect(self._on_save_to_preview)
+        self.save_to_preview_btn.setToolTip("シーンをプレビューに表示します。全シーン保存後に出力・コピーできます。")
+        self.save_to_preview_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 12pt;
+            }
+            QPushButton:hover {
+                background-color: #45A049;
+            }
+            QPushButton:pressed {
+                background-color: #388E3C;
+            }
+        """)
+        preview_button_layout.addWidget(self.save_to_preview_btn)
+        preview_button_layout.addStretch()
 
-        delete_scene_btn = QPushButton("削除")
-        delete_scene_btn.clicked.connect(self._on_delete_scene)
-        scene_button_layout.addWidget(delete_scene_btn)
-
-        scene_button_layout.addStretch()
-
-        self.insert_scene_btn = QPushButton("📚 挿入")
-        self.insert_scene_btn.clicked.connect(self._on_insert_scene_from_library)
-        self.insert_scene_btn.setToolTip("ライブラリから保存済みシーンを挿入")
-        scene_button_layout.addWidget(self.insert_scene_btn)
-
-        layout.addLayout(scene_button_layout)
+        layout.addLayout(preview_button_layout)
 
     def set_project(self, project: Project):
         """プロジェクトを設定
@@ -186,6 +247,9 @@ class SceneEditorPanel(QWidget):
             project: プロジェクトオブジェクト
         """
         self.project = project
+
+        # 作品名を表示
+        self.project_name_edit.setText(project.name if project.name else "")
 
         # タブをクリア
         self.scene_tabs.clear()
@@ -199,9 +263,24 @@ class SceneEditorPanel(QWidget):
             )
             project.add_scene(scene)
 
-        # シーンタブを作成
+        # シーンタブを作成（ユーザー入力のシーン名を表示）
         for scene in project.scenes:
-            self.scene_tabs.addTab(QWidget(), f"シーン{scene.scene_id}")
+            display_name = scene.scene_name if scene.scene_name else f"シーン{scene.scene_id}"
+
+            # シーンタブのコンテンツ：保存済みプロンプト表示エリア
+            scene_content = QTextEdit()
+            scene_content.setReadOnly(True)
+            scene_content.setPlaceholderText("（未保存）\n\n下部の「プロンプト編集」エリアで編集し、\n「💾 シーンに保存」をクリックしてください。")
+            scene_content.setStyleSheet("background-color: #f5f5f5; color: #333;")
+
+            # シーンに保存済みプロンプトがあれば表示
+            if scene.blocks:
+                from core.prompt_builder import PromptBuilder
+                builder = PromptBuilder()
+                saved_prompt = builder.build_scene_prompt(scene, apply_common_prompts=False)
+                scene_content.setPlainText(saved_prompt)
+
+            self.scene_tabs.addTab(scene_content, display_name)
 
         # 最初のシーンを選択
         self.scene_tabs.setCurrentIndex(0)
@@ -220,13 +299,11 @@ class SceneEditorPanel(QWidget):
 
         # シーン情報を表示
         self.scene_name_edit.setText(self.current_scene.scene_name)
-        self.completed_checkbox.setChecked(self.current_scene.is_completed)
 
         # シーンの内容をテキストエディタに表示
         self._sync_blocks_to_text()
 
-        # プレビュー更新（保存済みシーンを表示）
-        self.scene_changed.emit(self.current_scene)
+        # 注: プレビューは「シーンを保存」ボタンで手動更新
 
     def _update_block_list(self):
         """ブロックリスト更新"""
@@ -289,6 +366,15 @@ class SceneEditorPanel(QWidget):
         """
         self._load_scene(index)
 
+    def _on_project_name_changed(self, text: str):
+        """作品名変更時
+
+        Args:
+            text: 新しい作品名
+        """
+        if self.project:
+            self.project.name = text
+
     def _on_scene_name_changed(self, text: str):
         """シーン名変更時
 
@@ -297,28 +383,16 @@ class SceneEditorPanel(QWidget):
         """
         if self.current_scene:
             self.current_scene.scene_name = text
-            # タブ名も更新
+            # タブ名も更新（ユーザー入力のシーン名を表示）
             current_index = self.scene_tabs.currentIndex()
-            self.scene_tabs.setTabText(current_index, f"シーン{self.current_scene.scene_id}")
-
-    def _on_completed_changed(self, state: int):
-        """完成チェックボックス変更時
-
-        Args:
-            state: チェック状態
-        """
-        if not self.current_scene:
-            return
-
-        is_completed = (state == Qt.CheckState.Checked.value)
-        self.current_scene.is_completed = is_completed
-
-        # ✅ 完成にチェックした時だけ保存を促す
-        if is_completed:
-            self._prompt_save_to_library()
+            display_name = text if text.strip() else f"シーン{self.current_scene.scene_id}"
+            self.scene_tabs.setTabText(current_index, display_name)
 
     def _on_save_editor_to_scene(self):
         """エディタの内容をシーンに保存（新設計の核心メソッド）"""
+        from utils.logger import get_logger
+        logger = get_logger()
+
         if not self.current_scene:
             QMessageBox.warning(
                 self,
@@ -327,8 +401,12 @@ class SceneEditorPanel(QWidget):
             )
             return
 
+        logger.info(f"[シーン保存開始] シーンID: {self.current_scene.scene_id}, 名前: {self.current_scene.scene_name}")
+        logger.info(f"[シーン保存開始] 保存前のブロック数: {len(self.current_scene.blocks)}")
+
         # テキストエディタの内容を取得
         prompt_text = self.prompt_text_edit.toPlainText().strip()
+        logger.info(f"[シーン保存] エディタのテキスト長: {len(prompt_text)}")
 
         if not prompt_text:
             # 空の場合は確認
@@ -340,12 +418,15 @@ class SceneEditorPanel(QWidget):
             )
             if reply == QMessageBox.StandardButton.Yes:
                 self.current_scene.blocks.clear()
+                logger.info("[シーン保存] ブロックを全削除")
                 self.scene_changed.emit(self.current_scene)
                 QMessageBox.information(self, "保存完了", "シーンを空にしました。")
             return
 
         # 既存のブロックをクリア
+        old_block_count = len(self.current_scene.blocks)
         self.current_scene.blocks.clear()
+        logger.info(f"[シーン保存] ブロッククリア完了（削除数: {old_block_count}）")
 
         # テキストをパースしてブロックに変換
         import re
@@ -384,15 +465,72 @@ class SceneEditorPanel(QWidget):
                 )
                 self.current_scene.add_block(break_block)
 
-        # プレビュー更新（保存されたシーンを表示）
-        self.scene_changed.emit(self.current_scene)
+        logger.info(f"[シーン保存] ブロック作成完了（作成数: {len(self.current_scene.blocks)}）")
+
+        # エディタの内容を保存されたブロックから再生成（表示を更新）
+        self._sync_blocks_to_text()
+        logger.info("[シーン保存] エディタ再同期完了")
+
+        # シーンタブのコンテンツを更新（保存済みプロンプトを表示）
+        current_tab_index = self.scene_tabs.currentIndex()
+        scene_content_widget = self.scene_tabs.widget(current_tab_index)
+        if isinstance(scene_content_widget, QTextEdit):
+            from core.prompt_builder import PromptBuilder
+            builder = PromptBuilder()
+            saved_prompt = builder.build_scene_prompt(self.current_scene, apply_common_prompts=False)
+            scene_content_widget.setPlainText(saved_prompt)
+            logger.info("[シーン保存] シーンタブのコンテンツ更新完了")
+
+        # 注: プレビューは「シーンを保存」ボタンで手動更新
 
         # 成功メッセージ（小さなトースト風に）
+        logger.info(f"[シーン保存完了] シーンID: {self.current_scene.scene_id}, ブロック数: {len(self.current_scene.blocks)}")
+
+        # プロジェクトのシーンリストも確認
+        if self.project:
+            for i, scene in enumerate(self.project.scenes):
+                if scene.scene_id == self.current_scene.scene_id:
+                    logger.info(f"[シーン保存確認] プロジェクト内シーン[{i}] ブロック数: {len(scene.blocks)}")
+                    break
+
         QMessageBox.information(
             self,
             "保存完了",
-            f"シーン「{self.current_scene.scene_name}」に保存しました。\n\n"
-            f"ブロック数: {len(self.current_scene.blocks)}"
+            f"シーン「{self.current_scene.scene_name}」に保存しました。"
+        )
+
+    def _on_save_to_preview(self):
+        """シーンを保存してプレビューに表示"""
+        from utils.logger import get_logger
+        logger = get_logger()
+
+        if not self.current_scene:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "シーンが選択されていません。"
+            )
+            return
+
+        # ブロック数チェック
+        if not self.current_scene.blocks:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "シーンが空です。\n先に「💾 シーンに保存」ボタンでシーンを保存してください。"
+            )
+            return
+
+        # プレビューに表示
+        self.scene_changed.emit(self.current_scene)
+        logger.info(f"[プレビュー表示] シーンID: {self.current_scene.scene_id}, 名前: {self.current_scene.scene_name}")
+
+        # 成功メッセージ
+        QMessageBox.information(
+            self,
+            "プレビュー表示",
+            f"シーン「{self.current_scene.scene_name}」をプレビューに表示しました。\n\n"
+            f"プレビューパネルで確認してください。"
         )
 
     def _on_block_double_clicked(self, item: QListWidgetItem):
@@ -520,8 +658,16 @@ class SceneEditorPanel(QWidget):
 
         self.project.add_scene(scene)
 
-        # タブ追加
-        self.scene_tabs.addTab(QWidget(), f"シーン{scene.scene_id}")
+        # タブ追加（シーン名を表示）
+        display_name = scene.scene_name if scene.scene_name else f"シーン{scene.scene_id}"
+
+        # シーンタブのコンテンツ：保存済みプロンプト表示エリア
+        scene_content = QTextEdit()
+        scene_content.setReadOnly(True)
+        scene_content.setPlaceholderText("（未保存）\n\n下部の「プロンプト編集」エリアで編集し、\n「💾 シーンに保存」をクリックしてください。")
+        scene_content.setStyleSheet("background-color: #f5f5f5; color: #333;")
+
+        self.scene_tabs.addTab(scene_content, display_name)
         self.scene_tabs.setCurrentIndex(len(self.project.scenes) - 1)
 
     def _on_delete_scene(self):
@@ -579,8 +725,23 @@ class SceneEditorPanel(QWidget):
         # プロジェクトに追加
         self.project.add_scene(duplicated_scene)
 
-        # タブ追加
-        self.scene_tabs.addTab(QWidget(), f"シーン{duplicated_scene.scene_id}")
+        # タブ追加（シーン名を表示）
+        display_name = duplicated_scene.scene_name if duplicated_scene.scene_name else f"シーン{duplicated_scene.scene_id}"
+
+        # シーンタブのコンテンツ：保存済みプロンプト表示エリア
+        scene_content = QTextEdit()
+        scene_content.setReadOnly(True)
+        scene_content.setPlaceholderText("（未保存）\n\n下部の「プロンプト編集」エリアで編集し、\n「💾 シーンに保存」をクリックしてください。")
+        scene_content.setStyleSheet("background-color: #f5f5f5; color: #333;")
+
+        # 複製元のプロンプトを表示
+        if duplicated_scene.blocks:
+            from core.prompt_builder import PromptBuilder
+            builder = PromptBuilder()
+            saved_prompt = builder.build_scene_prompt(duplicated_scene, apply_common_prompts=False)
+            scene_content.setPlainText(saved_prompt)
+
+        self.scene_tabs.addTab(scene_content, display_name)
 
         # 新しいシーン（複製）を選択
         self.scene_tabs.setCurrentIndex(len(self.project.scenes) - 1)
@@ -726,27 +887,11 @@ class SceneEditorPanel(QWidget):
                 project_name = self.project.name if self.project else "不明"
                 self.custom_prompt_manager.record_usage(saved_prompt.id, project_name)
 
-    def _prompt_save_to_library(self):
-        """シーン保存を促すダイアログ（✅完成チェック時に呼ばれる）"""
-        if not self.current_scene or not self.current_scene.blocks:
-            return
-
-        # ユーザーに保存するか確認
-        reply = QMessageBox.question(
-            self,
-            "シーンを保存",
-            f"シーン「{self.current_scene.scene_name}」を\n"
-            f"ライブラリに保存しますか？\n\n"
-            f"後で別のプロジェクトで再利用できます。",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No  # デフォルトは「いいえ」
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            self._on_save_scene_to_library()
-
     def _on_save_scene_to_library(self):
         """シーンをライブラリに保存"""
+        from utils.logger import get_logger
+        logger = get_logger()
+
         if not self.current_scene:
             QMessageBox.warning(
                 self,
@@ -755,8 +900,17 @@ class SceneEditorPanel(QWidget):
             )
             return
 
+        logger.info(f"[ライブラリ保存開始] シーンID: {self.current_scene.scene_id}, 名前: {self.current_scene.scene_name}")
+        logger.info(f"[ライブラリ保存開始] ブロック数: {len(self.current_scene.blocks)}")
+
+        # ブロックの内容を詳細にログ出力
+        for i, block in enumerate(self.current_scene.blocks):
+            content_preview = block.content[:50] if len(block.content) > 50 else block.content
+            logger.info(f"[ライブラリ保存] ブロック[{i}]: type={block.type.value}, content={content_preview}")
+
         # ブロック数チェック
         if not self.current_scene.blocks:
+            logger.warning("[ライブラリ保存] ブロックが空です")
             QMessageBox.warning(
                 self,
                 "エラー",
@@ -785,13 +939,13 @@ class SceneEditorPanel(QWidget):
                 # ライブラリパネルの更新を通知
                 self.scene_library_updated.emit()
 
-    def _on_insert_scene_from_library(self):
-        """ライブラリからシーンを挿入"""
-        if not self.project:
+    def _on_load_scene_from_library(self):
+        """ライブラリからシーンをプロンプト編集エリアに読み込み"""
+        if not self.current_scene:
             QMessageBox.warning(
                 self,
                 "エラー",
-                "プロジェクトが開かれていません。"
+                "シーンが選択されていません。"
             )
             return
 
@@ -802,9 +956,22 @@ class SceneEditorPanel(QWidget):
                 self,
                 "ライブラリが空です",
                 "シーンライブラリにシーンがありません。\n\n"
-                "先にシーンを「📚 シーンをライブラリに保存」で保存してください。"
+                "先にシーンを「📚 ライブラリ保存」で保存してください。"
             )
             return
+
+        # 確認メッセージ
+        current_text = self.prompt_text_edit.toPlainText().strip()
+        if current_text:
+            reply = QMessageBox.question(
+                self,
+                "確認",
+                "プロンプト編集エリアの内容を上書きしますか？\n\n"
+                "現在の内容は失われます。",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
 
         # 選択ダイアログを表示
         from .scene_select_dialog import SceneSelectDialog
@@ -818,40 +985,44 @@ class SceneEditorPanel(QWidget):
             selected_item = dialog.get_selected_item()
             if selected_item:
                 try:
-                    # 新しいシーンIDを取得
-                    scene_id = self.project.get_next_scene_id()
-
-                    # プロジェクト名を取得
-                    project_name = self.project.name if self.project else "不明"
-
-                    # ライブラリからシーンを作成
-                    scene = self.scene_library_manager.create_scene_from_library(
+                    # ライブラリからシーンを作成（一時的に）
+                    temp_scene = self.scene_library_manager.create_scene_from_library(
                         item=selected_item,
-                        project_name=project_name,
-                        scene_id=scene_id
+                        project_name=self.project.name if self.project else "不明",
+                        scene_id=999  # 一時ID
                     )
 
-                    # プロジェクトに追加
-                    self.project.add_scene(scene)
+                    # シーンのプロンプトをプロンプト編集エリアに表示
+                    if temp_scene.blocks:
+                        from core.prompt_builder import PromptBuilder
+                        builder = PromptBuilder()
+                        loaded_prompt = builder.build_scene_prompt(temp_scene, apply_common_prompts=False)
+                        self.prompt_text_edit.setPlainText(loaded_prompt)
 
-                    # タブ追加
-                    self.scene_tabs.addTab(QWidget(), f"シーン{scene.scene_id}")
-
-                    # 新しいシーンを選択
-                    self.scene_tabs.setCurrentIndex(len(self.project.scenes) - 1)
-
-                    QMessageBox.information(
-                        self,
-                        "挿入完了",
-                        f"シーン「{selected_item.name}」を挿入しました。"
-                    )
+                        QMessageBox.information(
+                            self,
+                            "読み込み完了",
+                            f"シーン「{selected_item.name}」をプロンプト編集エリアに読み込みました。\n\n"
+                            f"編集後、「💾 シーンに保存」ボタンで保存してください。"
+                        )
+                    else:
+                        QMessageBox.warning(
+                            self,
+                            "エラー",
+                            "選択したシーンにブロックがありません。"
+                        )
 
                 except Exception as e:
                     QMessageBox.critical(
                         self,
                         "エラー",
-                        f"シーンの挿入に失敗しました:\n{e}"
+                        f"シーンの読み込みに失敗しました:\n{e}"
                     )
+
+    def _on_save_project_to_library(self):
+        """作品を保存（作品ライブラリ）"""
+        # MainWindowに通知（MainWindowで実際の保存処理を行う）
+        self.save_project_requested.emit()
 
     def _on_paste_and_split_prompt(self):
         """プロンプトを貼り付けて自動的にブロックに分割"""
@@ -996,8 +1167,13 @@ class SceneEditorPanel(QWidget):
 
     def _sync_blocks_to_text(self):
         """ブロックからテキストエリアに同期"""
+        from utils.logger import get_logger
+        logger = get_logger()
+
         if not self.current_scene:
             return
+
+        logger.info(f"[ブロック→テキスト同期] シーンID: {self.current_scene.scene_id}, ブロック数: {len(self.current_scene.blocks)}")
 
         # ブロックからプロンプトテキストを生成
         from core.prompt_builder import PromptBuilder
@@ -1005,11 +1181,13 @@ class SceneEditorPanel(QWidget):
 
         # BREAKを保持したまま1行のプロンプトを構築
         prompt = builder.build_scene_prompt(self.current_scene, apply_common_prompts=False)
+        logger.info(f"[ブロック→テキスト同期] 生成されたプロンプト長: {len(prompt)}")
 
         # テキストエリアに設定（一時的にシグナルをブロック）
         self.prompt_text_edit.blockSignals(True)
         self.prompt_text_edit.setPlainText(prompt)
         self.prompt_text_edit.blockSignals(False)
+        logger.info("[ブロック→テキスト同期] エディタ設定完了")
 
     def _sync_text_to_blocks(self):
         """テキストエリアからブロックに同期"""
@@ -1088,4 +1266,18 @@ class SceneEditorPanel(QWidget):
             self.scene_changed.emit(temp_scene)
         else:
             self.scene_changed.emit(self.current_scene)
+
+    def _on_tab_moved(self, from_index: int, to_index: int):
+        """タブ移動時の処理
+
+        Args:
+            from_index: 移動元のインデックス
+            to_index: 移動先のインデックス
+        """
+        if not self.project or not self.project.scenes:
+            return
+
+        # プロジェクト内のシーンの順序も同期
+        moved_scene = self.project.scenes.pop(from_index)
+        self.project.scenes.insert(to_index, moved_scene)
 

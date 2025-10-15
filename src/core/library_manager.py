@@ -135,8 +135,8 @@ class LibraryManager:
         # ディレクトリが存在しない場合は作成
         csv_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # CSVに書き込み
-        with csv_path.open('w', encoding='utf-8', newline='') as f:
+        # CSVに書き込み（BOM付きUTF-8でExcel対応）
+        with csv_path.open('w', encoding='utf-8-sig', newline='') as f:
             writer = csv.writer(f)
 
             # ヘッダー
@@ -180,7 +180,8 @@ class LibraryManager:
 
         prompts = []
 
-        with csv_path.open('r', encoding='utf-8') as f:
+        # BOM付きUTF-8で読み込み（BOMがない場合も自動対応）
+        with csv_path.open('r', encoding='utf-8-sig') as f:
             reader = csv.DictReader(f)
 
             for row in reader:

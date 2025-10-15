@@ -65,17 +65,17 @@ class CustomPromptDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # プロンプト表示
+        # プロンプト編集
         prompt_label = QLabel("プロンプト:")
         layout.addWidget(prompt_label)
 
         self.prompt_display = QTextEdit()
         self.prompt_display.setPlainText(self.prompt_text)
-        self.prompt_display.setReadOnly(True)
         self.prompt_display.setMaximumHeight(80)
         self.prompt_display.setStyleSheet("""
             QTextEdit {
-                background-color: #f5f5f5;
+                background-color: white;
+                color: black;
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 padding: 8px;
@@ -212,8 +212,9 @@ class CustomPromptDialog(QDialog):
 
         else:
             # 新規保存モード: タグを自動生成
-            auto_tags = self.custom_prompt_manager._generate_tags(self.prompt_text)
-            self.tags_edit.setText(", ".join(auto_tags))
+            if self.prompt_text:
+                auto_tags = self.custom_prompt_manager._generate_tags(self.prompt_text)
+                self.tags_edit.setText(", ".join(auto_tags))
 
     def _on_save(self):
         """保存ボタンクリック"""
@@ -240,12 +241,24 @@ class CustomPromptDialog(QDialog):
         else:
             tags = []
 
+        # プロンプト内容を取得
+        prompt_content = self.prompt_display.toPlainText().strip()
+
+        if not prompt_content:
+            QMessageBox.warning(
+                self,
+                "入力エラー",
+                "プロンプト内容を入力してください。"
+            )
+            self.prompt_display.setFocus()
+            return
+
         try:
             if self.existing_prompt:
                 # 更新モード
                 success = self.custom_prompt_manager.update_prompt(
                     prompt_id=self.existing_prompt.id,
-                    prompt=self.prompt_text if self.prompt_text else None,
+                    prompt=prompt_content,
                     label_ja=label_ja,
                     label_en=label_en,
                     category=category,
@@ -273,7 +286,7 @@ class CustomPromptDialog(QDialog):
             else:
                 # 新規保存モード
                 self.saved_prompt = self.custom_prompt_manager.add_prompt(
-                    prompt=self.prompt_text,
+                    prompt=prompt_content,
                     label_ja=label_ja,
                     label_en=label_en,
                     category=category,

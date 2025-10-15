@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt
 
 from models import Scene
 from core.scene_library_manager import SceneLibraryManager
+from ui.category_edit_dialog import CategoryEditDialog
 from utils.logger import get_logger
 
 
@@ -107,7 +108,13 @@ class SceneSaveDialog(QDialog):
 
         self.category_combo.addItems(all_categories)
         self.category_combo.setEditable(True)  # 手動入力も可能
-        category_layout.addWidget(self.category_combo)
+        category_layout.addWidget(self.category_combo, 3)  # 60%の幅
+
+        # カテゴリ編集ボタン
+        self.edit_category_btn = QPushButton("編集")
+        self.edit_category_btn.setMaximumWidth(100)
+        self.edit_category_btn.clicked.connect(self._on_edit_category)
+        category_layout.addWidget(self.edit_category_btn, 2)  # 40%の幅
 
         library_layout.addLayout(category_layout)
 
@@ -141,6 +148,29 @@ class SceneSaveDialog(QDialog):
         button_layout.addWidget(save_btn)
 
         layout.addLayout(button_layout)
+
+    def _on_edit_category(self):
+        """カテゴリ編集ボタンクリック"""
+        # 現在選択されているカテゴリを保存
+        current_category = self.category_combo.currentText()
+
+        # カテゴリ編集ダイアログを開く
+        dialog = CategoryEditDialog(self.scene_library_manager, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # 編集後のカテゴリリストを取得
+            updated_categories = dialog.get_categories()
+
+            # カテゴリコンボボックスを更新
+            self.category_combo.clear()
+            self.category_combo.addItems(updated_categories)
+
+            # 以前選択されていたカテゴリがまだ存在する場合は再選択
+            if current_category in updated_categories:
+                index = self.category_combo.findText(current_category)
+                if index >= 0:
+                    self.category_combo.setCurrentIndex(index)
+
+            self.logger.info("カテゴリ編集完了 - コンボボックスを更新")
 
     def _on_save(self):
         """保存ボタンクリック"""
