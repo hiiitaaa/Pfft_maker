@@ -70,8 +70,9 @@ data/custom_prompts.json    # 個人のプロンプト
 data/templates.json         # 個人のテンプレート
 
 # Build
-*.spec
 dist/
 build/
 Mac.zip
-Mac/
+
+# PyInstaller spec files (keep platform-specific specs)
+!platform/**/*.spec

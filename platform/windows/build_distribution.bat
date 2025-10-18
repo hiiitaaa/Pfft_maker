@@ -1,9 +1,12 @@
 @echo off
-REM Pfft_maker 配布版ビルドスクリプト
+REM Pfft_maker 配布版ビルドスクリプト (Windows)
 REM 個人情報を除外したクリーンなビルドを作成
+REM
+REM 使用方法: プロジェクトルートディレクトリから実行してください
+REM   platform\windows\build_distribution.bat
 
 echo ========================================
-echo Pfft_maker 配布版ビルド
+echo Pfft_maker 配布版ビルド (Windows)
 echo ========================================
 echo.
 
@@ -33,7 +36,7 @@ echo.
 REM 3. PyInstallerでビルド
 echo [3/5] PyInstallerでビルド中...
 echo これには数分かかる場合があります...
-python -m PyInstaller --clean Pfft_maker.spec
+python -m PyInstaller --clean platform\windows\Pfft_maker.spec
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
