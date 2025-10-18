@@ -73,3 +73,5 @@ data/templates.json         # 個人のテンプレート
 *.spec
 dist/
 build/
+Mac.zip
+Mac/
