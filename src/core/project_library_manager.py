@@ -1,6 +1,6 @@
-"""シーンライブラリ管理
+"""作品ライブラリ管理
 
-よく使うシーンの保存・読み込み・管理を行います。
+複数のシーンをまとめた作品の保存・読み込み・管理を行います。
 """
 
 import json
@@ -8,15 +8,15 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 
-from models import Scene, SceneLibraryItem, Block, BlockType
+from models import Project, Scene, ProjectLibraryItem, SceneLibraryItem
 from utils.logger import get_logger
 
 
-class SceneLibraryManager:
-    """シーンライブラリ管理クラス
+class ProjectLibraryManager:
+    """作品ライブラリ管理クラス
 
-    scene_library.jsonファイルを読み書きし、
-    シーンライブラリの保存・読み込み・削除を管理します。
+    project_library.jsonファイルを読み書きし、
+    作品ライブラリの保存・読み込み・削除を管理します。
     """
 
     def __init__(self, data_dir: Path):
@@ -26,37 +26,37 @@ class SceneLibraryManager:
             data_dir: データディレクトリのパス
         """
         self.data_dir = data_dir
-        self.library_file = data_dir / "scene_library.json"
-        self.items: List[SceneLibraryItem] = []
+        self.library_file = data_dir / "project_library.json"
+        self.items: List[ProjectLibraryItem] = []
         self.logger = get_logger()
 
         # ライブラリファイルが存在すれば読み込み
         if self.library_file.exists():
             self.load()
 
-    def save_scene_to_library(
+    def save_project_to_library(
         self,
-        scene: Scene,
+        project: Project,
         name: str,
         description: str = "",
         category: str = "その他",
         tags: Optional[List[str]] = None
-    ) -> SceneLibraryItem:
-        """シーンをライブラリに保存
+    ) -> ProjectLibraryItem:
+        """プロジェクトを作品ライブラリに保存
 
         Args:
-            scene: Sceneオブジェクト
-            name: シーン名
+            project: Projectオブジェクト
+            name: 作品名
             description: 説明
             category: カテゴリ
             tags: タグのリスト
 
         Returns:
-            作成されたSceneLibraryItemオブジェクト
+            作成されたProjectLibraryItemオブジェクト
         """
         # ライブラリアイテムを作成
-        item = SceneLibraryItem.create_from_scene(
-            scene=scene,
+        item = ProjectLibraryItem.create_from_project(
+            project=project,
             name=name,
             description=description,
             category=category,
@@ -66,35 +66,96 @@ class SceneLibraryManager:
         self.items.append(item)
         self.save()
 
-        self.logger.info(f"シーンライブラリに保存: {name} (ブロック数: {len(scene.blocks)})")
+        self.logger.info(
+            f"作品ライブラリに保存: {name} ({len(project.scenes)}シーン)"
+        )
         return item
 
-    def create_scene_from_library(
+    def create_scenes_from_library(
         self,
-        item: SceneLibraryItem,
+        item: ProjectLibraryItem,
+        project_name: str,
+        start_scene_id: int
+    ) -> List[Scene]:
+        """ライブラリアイテムから複数のシーンを作成
+
+        Args:
+            item: ProjectLibraryItemオブジェクト
+            project_name: プロジェクト名（使用履歴記録用）
+            start_scene_id: 開始シーンID
+
+        Returns:
+            作成されたSceneオブジェクトのリスト
+        """
+        scenes = []
+
+        for i, scene_item in enumerate(item.scenes):
+            scene_id = start_scene_id + i
+
+            # シーン作成
+            from models import Block, BlockType
+            scene = Scene(
+                scene_id=scene_id,
+                scene_name=scene_item.name,
+                is_completed=False
+            )
+
+            # ブロックを復元
+            for j, block_template in enumerate(scene_item.block_templates, start=1):
+                block_type = BlockType(block_template.type)
+
+                block = Block(
+                    block_id=j,
+                    type=block_type,
+                    content=block_template.content
+                )
+                scene.add_block(block)
+
+            scenes.append(scene)
+
+        # 使用履歴を記録
+        item.increment_usage(project_name)
+        self.save()
+
+        self.logger.info(
+            f"作品ライブラリからシーン作成: {item.name} -> {project_name} "
+            f"({len(scenes)}シーン)"
+        )
+        return scenes
+
+    def get_single_scene_from_library(
+        self,
+        item: ProjectLibraryItem,
+        scene_index: int,
         project_name: str,
         scene_id: int
     ) -> Scene:
-        """ライブラリアイテムからシーンを作成
+        """ライブラリアイテムから単一のシーンを作成
 
         Args:
-            item: SceneLibraryItemオブジェクト
+            item: ProjectLibraryItemオブジェクト
+            scene_index: シーンのインデックス（0から始まる）
             project_name: プロジェクト名（使用履歴記録用）
             scene_id: 新しいシーンのID
 
         Returns:
             作成されたSceneオブジェクト
         """
+        if scene_index < 0 or scene_index >= len(item.scenes):
+            raise IndexError(f"シーンインデックスが範囲外: {scene_index}")
+
+        scene_item = item.scenes[scene_index]
+
         # シーン作成
+        from models import Block, BlockType
         scene = Scene(
             scene_id=scene_id,
-            scene_name=item.name,
-            is_completed=False,
-            source_library_id=item.id  # 元のライブラリIDを保持
+            scene_name=scene_item.name,
+            is_completed=False
         )
 
         # ブロックを復元
-        for i, block_template in enumerate(item.block_templates, start=1):
+        for i, block_template in enumerate(scene_item.block_templates, start=1):
             block_type = BlockType(block_template.type)
 
             block = Block(
@@ -109,12 +170,11 @@ class SceneLibraryManager:
         self.save()
 
         self.logger.info(
-            f"ライブラリからシーン作成: {item.name} -> {project_name} "
-            f"({len(scene.blocks)}ブロック)"
+            f"作品ライブラリからシーン作成: {item.name}[{scene_index}] -> {project_name}"
         )
         return scene
 
-    def get_all_items(self) -> List[SceneLibraryItem]:
+    def get_all_items(self) -> List[ProjectLibraryItem]:
         """全ライブラリアイテムを取得
 
         Returns:
@@ -122,7 +182,7 @@ class SceneLibraryManager:
         """
         return self.items
 
-    def get_item_by_id(self, item_id: str) -> Optional[SceneLibraryItem]:
+    def get_item_by_id(self, item_id: str) -> Optional[ProjectLibraryItem]:
         """IDでライブラリアイテムを取得
 
         Args:
@@ -136,7 +196,7 @@ class SceneLibraryManager:
                 return item
         return None
 
-    def get_most_used(self, limit: int = 5) -> List[SceneLibraryItem]:
+    def get_most_used(self, limit: int = 5) -> List[ProjectLibraryItem]:
         """最もよく使われるライブラリアイテムを取得
 
         Args:
@@ -148,7 +208,7 @@ class SceneLibraryManager:
         sorted_items = sorted(self.items, key=lambda x: x.usage_count, reverse=True)
         return sorted_items[:limit]
 
-    def get_recently_used(self, limit: int = 5) -> List[SceneLibraryItem]:
+    def get_recently_used(self, limit: int = 5) -> List[ProjectLibraryItem]:
         """最近使われたライブラリアイテムを取得
 
         Args:
@@ -162,7 +222,7 @@ class SceneLibraryManager:
         sorted_items = sorted(used_items, key=lambda x: x.last_used, reverse=True)
         return sorted_items[:limit]
 
-    def get_by_category(self, category: str) -> List[SceneLibraryItem]:
+    def get_by_category(self, category: str) -> List[ProjectLibraryItem]:
         """カテゴリでライブラリアイテムを取得
 
         Args:
@@ -173,7 +233,7 @@ class SceneLibraryManager:
         """
         return [item for item in self.items if item.category == category]
 
-    def search(self, query: str) -> List[SceneLibraryItem]:
+    def search(self, query: str) -> List[ProjectLibraryItem]:
         """検索クエリでライブラリアイテムを検索
 
         Args:
@@ -198,11 +258,11 @@ class SceneLibraryManager:
                 deleted_name = item.name
                 del self.items[i]
                 self.save()
-                self.logger.info(f"シーンライブラリから削除: {deleted_name}")
+                self.logger.info(f"作品ライブラリから削除: {deleted_name}")
                 return True
         return False
 
-    def update_item(self, item: SceneLibraryItem) -> bool:
+    def update_item(self, item: ProjectLibraryItem) -> bool:
         """ライブラリアイテムを更新
 
         Args:
@@ -215,7 +275,7 @@ class SceneLibraryManager:
             if existing_item.id == item.id:
                 self.items[i] = item
                 self.save()
-                self.logger.info(f"シーンライブラリを更新: {item.name}")
+                self.logger.info(f"作品ライブラリを更新: {item.name}")
                 return True
         return False
 
@@ -234,7 +294,7 @@ class SceneLibraryManager:
         with self.library_file.open('w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        self.logger.debug(f"シーンライブラリ保存: {len(self.items)}件")
+        self.logger.debug(f"作品ライブラリ保存: {len(self.items)}件")
 
     def load(self):
         """ライブラリをファイルから読み込み"""
@@ -244,14 +304,14 @@ class SceneLibraryManager:
 
             # ライブラリアイテムを復元
             self.items = [
-                SceneLibraryItem.from_dict(item)
+                ProjectLibraryItem.from_dict(item)
                 for item in data.get('items', [])
             ]
 
-            self.logger.info(f"シーンライブラリ読み込み: {len(self.items)}件")
+            self.logger.info(f"作品ライブラリ読み込み: {len(self.items)}件")
 
         except Exception as e:
-            self.logger.error(f"シーンライブラリ読み込み失敗: {e}")
+            self.logger.error(f"作品ライブラリ読み込み失敗: {e}")
             self.items = []
 
     def get_categories(self) -> List[str]:

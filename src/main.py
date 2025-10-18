@@ -38,6 +38,32 @@ def main():
 
         logger.info("Qtアプリケーション初期化完了")
 
+        # 初回起動チェック
+        from config.settings import Settings
+        settings = Settings()
+        is_first_run = not settings.config_path.exists()
+
+        if is_first_run:
+            logger.info("初回起動を検出: ウェルカムダイアログを表示")
+            from ui.welcome_dialog import WelcomeDialog
+            welcome = WelcomeDialog(settings)
+            if welcome.exec() != WelcomeDialog.DialogCode.Accepted:
+                logger.info("ユーザーがセットアップをキャンセルしました")
+                sys.exit(0)
+            logger.info("初回セットアップ完了")
+        else:
+            # 起動時の自動バックアップ（初回起動以外）
+            try:
+                from core.backup_manager import BackupManager
+                backup_manager = BackupManager(
+                    settings.get_data_dir(),
+                    Settings.get_default_backup_dir()
+                )
+                if backup_manager.auto_backup_on_startup():
+                    logger.info("起動時の自動バックアップを作成しました")
+            except Exception as e:
+                logger.warning(f"自動バックアップに失敗しましたが、アプリは続行します: {e}")
+
         # メインウィンドウ表示
         logger.info("メインウィンドウを作成中...")
         window = MainWindow()

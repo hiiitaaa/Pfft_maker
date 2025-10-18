@@ -29,6 +29,7 @@ class Prompt(SerializableMixin):
         created_date: 作成日時
         last_used: 最終使用日時
         label_source: ラベルのソース（auto_extract, ai_generated, manual, auto_word_split）
+        lora_metadata: LoRA専用メタデータ（JSON文字列）
     """
     id: str
     source_file: str
@@ -42,6 +43,7 @@ class Prompt(SerializableMixin):
     created_date: datetime = field(default_factory=datetime.now)
     last_used: datetime | None = None
     label_source: str = "auto_extract"
+    lora_metadata: str | None = None
 
     def mark_as_used(self):
         """使用済みとしてマーク

@@ -6,11 +6,12 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QTextEdit, QComboBox, QPushButton,
-    QMessageBox, QGroupBox
+    QMessageBox, QGroupBox, QRadioButton, QButtonGroup
 )
 from PyQt6.QtCore import Qt
+from typing import Optional
 
-from models import Scene
+from models import Scene, SceneLibraryItem
 from core.scene_library_manager import SceneLibraryManager
 from ui.category_edit_dialog import CategoryEditDialog
 from utils.logger import get_logger
@@ -31,6 +32,7 @@ class SceneSaveDialog(QDialog):
         self,
         scene: Scene,
         scene_library_manager: SceneLibraryManager,
+        existing_item_id: Optional[str] = None,
         parent=None
     ):
         """初期化
@@ -38,14 +40,21 @@ class SceneSaveDialog(QDialog):
         Args:
             scene: 保存するシーン
             scene_library_manager: シーンライブラリマネージャー
+            existing_item_id: 既存のシーンID（上書き保存する場合）
             parent: 親ウィジェット
         """
         super().__init__(parent)
 
         self.scene = scene
         self.scene_library_manager = scene_library_manager
+        self.existing_item_id = existing_item_id
+        self.existing_item: Optional[SceneLibraryItem] = None
         self.saved_item = None
         self.logger = get_logger()
+
+        # 既存アイテムを取得
+        if existing_item_id:
+            self.existing_item = scene_library_manager.get_item_by_id(existing_item_id)
 
         # ダイアログ設定
         self.setWindowTitle("シーンをライブラリに保存")
@@ -80,6 +89,28 @@ class SceneSaveDialog(QDialog):
 
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
+
+        # 保存モード選択（既存アイテムがある場合のみ表示）
+        if self.existing_item:
+            save_mode_group = QGroupBox("保存モード")
+            save_mode_layout = QVBoxLayout()
+
+            self.save_mode_button_group = QButtonGroup()
+
+            self.overwrite_radio = QRadioButton(f"上書き保存（既存の「{self.existing_item.name}」を更新）")
+            self.overwrite_radio.setChecked(True)
+            self.save_mode_button_group.addButton(self.overwrite_radio, 0)
+            save_mode_layout.addWidget(self.overwrite_radio)
+
+            self.new_save_radio = QRadioButton("新規保存（新しいシーンとして保存）")
+            self.save_mode_button_group.addButton(self.new_save_radio, 1)
+            save_mode_layout.addWidget(self.new_save_radio)
+
+            save_mode_group.setLayout(save_mode_layout)
+            layout.addWidget(save_mode_group)
+        else:
+            # 既存アイテムがない場合は新規保存のみ
+            self.save_mode_button_group = None
 
         # ライブラリ設定
         library_group = QGroupBox("ライブラリ設定")
@@ -206,28 +237,72 @@ class SceneSaveDialog(QDialog):
         # 説明
         description = self.description_input.toPlainText().strip()
 
+        # 保存モードを判定
+        is_overwrite = False
+        if self.save_mode_button_group and self.existing_item:
+            is_overwrite = self.save_mode_button_group.checkedId() == 0
+
         # ライブラリに保存
         try:
-            self.saved_item = self.scene_library_manager.save_scene_to_library(
-                scene=self.scene,
-                name=name,
-                description=description,
-                category=category,
-                tags=tags
-            )
+            if is_overwrite and self.existing_item:
+                # 上書き保存
+                # 既存アイテムを更新
+                updated_item = SceneLibraryItem.create_from_scene(
+                    scene=self.scene,
+                    name=name,
+                    description=description,
+                    category=category,
+                    tags=tags
+                )
+                # IDと使用統計を保持
+                updated_item.id = self.existing_item.id
+                updated_item.usage_count = self.existing_item.usage_count
+                updated_item.last_used = self.existing_item.last_used
+                updated_item.usage_history = self.existing_item.usage_history
 
-            self.logger.info(f"シーンをライブラリに保存: {name}")
+                # 更新
+                success = self.scene_library_manager.update_item(updated_item)
 
-            QMessageBox.information(
-                self,
-                "保存完了",
-                f"シーン「{name}」をライブラリに保存しました。\n\n"
-                f"カテゴリ: {category}\n"
-                f"ブロック数: {len(self.scene.blocks)}\n"
-                f"タグ: {', '.join(tags) if tags else 'なし'}"
-            )
+                if success:
+                    self.saved_item = updated_item
+                    self.logger.info(f"シーンを上書き保存: {name}")
+                    QMessageBox.information(
+                        self,
+                        "上書き保存完了",
+                        f"シーン「{name}」を上書き保存しました。\n\n"
+                        f"カテゴリ: {category}\n"
+                        f"ブロック数: {len(self.scene.blocks)}\n"
+                        f"タグ: {', '.join(tags) if tags else 'なし'}"
+                    )
+                    self.accept()
+                else:
+                    QMessageBox.critical(
+                        self,
+                        "保存エラー",
+                        "シーンの上書き保存に失敗しました。"
+                    )
+            else:
+                # 新規保存
+                self.saved_item = self.scene_library_manager.save_scene_to_library(
+                    scene=self.scene,
+                    name=name,
+                    description=description,
+                    category=category,
+                    tags=tags
+                )
 
-            self.accept()
+                self.logger.info(f"シーンを新規保存: {name}")
+
+                QMessageBox.information(
+                    self,
+                    "保存完了",
+                    f"シーン「{name}」を新規保存しました。\n\n"
+                    f"カテゴリ: {category}\n"
+                    f"ブロック数: {len(self.scene.blocks)}\n"
+                    f"タグ: {', '.join(tags) if tags else 'なし'}"
+                )
+
+                self.accept()
 
         except Exception as e:
             self.logger.error(f"シーン保存失敗: {e}", exc_info=True)

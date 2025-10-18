@@ -18,20 +18,79 @@
 **所要時間:** 約30分
 
 **前提条件:**
-- Python 3.11以上がインストール済み
-- Stable Diffusion WebUIがインストール済み
-- Dynamic Prompts拡張がインストール済み
+- **EXE版**: 特になし（実行ファイルをダブルクリックするだけ）
+- **開発環境版**: Python 3.11以上がインストール済み
+- Stable Diffusion WebUIがインストール済み（画像生成時に必要）
+- Dynamic Prompts拡張がインストール済み（画像生成時に必要）
 
 ---
 
 ## Part 1: インストールと初回起動
 
-### Step 1-1: 依存関係のインストール
+### EXE版を使う場合（推奨）
+
+#### Step 1-1: EXEファイルの起動
+
+配布されたZIPファイルを解凍し、`Pfft_maker.exe` をダブルクリックします。
+
+```
+Pfft_maker/
+├── Pfft_maker.exe  ← これをダブルクリック
+├── _internal/
+└── ...
+```
+
+**起動確認:**
+- Pfft_makerのウィンドウが表示される
+- 3カラム（左・中央・右）のレイアウトが見える
+
+#### Step 1-2: ウェルカムダイアログでの初期設定
+
+初回起動時は、自動的に**ウェルカムダイアログ**が表示されます。
+
+```
+┌─────────────────────────────────┐
+│ Pfft_makerへようこそ！          │
+│                                 │
+│ 初回セットアップを行います。    │
+│                                 │
+│ ワイルドカードフォルダ:         │
+│ [C:\Users\...\wildcards]        │
+│ [参照...]                       │
+│                                 │
+│ データ保存先:                   │
+│ C:\Users\[ユーザー名]\AppData\  │
+│ Roaming\Pfft_maker              │
+│                                 │
+│ [スキップ] [OK]                 │
+└─────────────────────────────────┘
+```
+
+**設定手順:**
+1. **[参照...]** ボタンをクリック
+2. Stable Diffusion WebUIのワイルドカードフォルダを選択
+   - 例: `[Stable Diffusion WebUIフォルダ]\extensions\sd-dynamic-prompts\wildcards\`
+3. **[OK]** ボタンをクリック
+
+**データ保存先について:**
+- ユーザーデータは `%APPDATA%\Pfft_maker` に保存されます
+- アプリケーションをアンインストールしてもデータは残ります
+- ポータブル版を使う場合は、`PORTABLE.txt` をEXE実行フォルダに作成してください
+
+**確認:**
+- ウェルカムダイアログが閉じる
+- メインウィンドウが表示される
+
+---
+
+### 開発環境版を使う場合
+
+#### Step 1-1: 依存関係のインストール
 
 コマンドプロンプトを開き、Pfft_makerのディレクトリに移動します。
 
 ```bash
-cd E:\tool\Pfft_maker
+cd [Pfft_makerのフォルダ]
 ```
 
 依存関係をインストールします。
@@ -43,14 +102,14 @@ pip install -r requirements.txt
 **確認:**
 ```bash
 # インストール完了のメッセージが表示されればOK
-Successfully installed PyQt6-6.6.1 pandas-2.1.4 ...
+Successfully installed PyQt6-6.6.1 anthropic-0.x.x openai-1.x.x ...
 ```
 
-### Step 1-2: アプリケーションの起動
+#### Step 1-2: アプリケーションの起動
 
 ```bash
 # Windowsバッチファイルで起動（推奨）
-run_app.bat
+Pfft_maker.bat
 
 # または直接実行
 python run.py
@@ -59,28 +118,19 @@ python run.py
 **起動確認:**
 - Pfft_makerのウィンドウが表示される
 - 3カラム（左・中央・右）のレイアウトが見える
-- タイトルバーに「Pfft_maker - 無題のプロジェクト」と表示される
 
-### Step 1-3: ワイルドカードディレクトリの設定
+#### Step 1-3: ウェルカムダイアログでの初期設定
 
-初回起動時は、ワイルドカードファイルの場所を設定します。
+EXE版と同じく、初回起動時に**ウェルカムダイアログ**が自動表示されます。
+上記「EXE版を使う場合 - Step 1-2」を参照してください。
 
-1. メニュー → **ツール** → **設定**
-2. **ワイルドカードディレクトリ**タブを選択
-3. デフォルトパスを確認:
-   ```
-   E:\EasyReforge\Model\wildcards\
-   ```
-4. パスが異なる場合は [参照] ボタンで変更
-5. [OK] ボタンをクリック
-
-**確認:**
-- 設定ダイアログが閉じる
-- ステータスバーに「設定を保存しました」と表示
+**データ保存先について:**
+- 開発環境では、プロジェクトルートに `PORTABLE.txt` がある場合、`user_data/` フォルダに保存されます
+- それ以外は `%APPDATA%\Pfft_maker` に保存されます
 
 ---
 
-## Part 2: ライブラリの読み込み
+## Part 2: ライブラリの読み込みと更新通知
 
 ### Step 2-1: ライブラリを読み込む
 
@@ -98,7 +148,30 @@ python run.py
 ライブラリを読み込みました: 10,942プロンプト
 ```
 
-### Step 2-2: カテゴリ一覧を確認
+### Step 2-2: 更新通知バナーの確認（初回起動後2回目以降）
+
+ワイルドカードファイルが更新されている場合、画面上部に**更新通知バナー**が表示されます。
+
+```
+┌─────────────────────────────────────────┐
+│ 📢 ライブラリに更新があります          │
+│                                         │
+│ 追加: 3ファイル、更新: 2ファイル、     │
+│ 削除: 1ファイル                         │
+│                                         │
+│ [今すぐ同期] [後で]                     │
+└─────────────────────────────────────────┘
+```
+
+**操作:**
+- **[今すぐ同期]**: ライブラリを再読み込み（ユーザーラベルは保持されます）
+- **[後で]**: 通知を閉じる（次回起動時に再表示）
+
+**バナーの色:**
+- 背景: ライトブルー（#E3F2FD）
+- 文字: 黒（視認性重視）
+
+### Step 2-3: カテゴリ一覧を確認
 
 左パネルにカテゴリが表示されます。
 
@@ -132,11 +205,16 @@ python run.py
 
 1. メニュー → **ファイル** → **名前を付けて保存**
 2. ファイル名を入力: `チュートリアルプロジェクト.pfft`
-3. 保存場所を選択（例: `E:\works\tutorial\`）
+3. 保存場所を選択（任意のフォルダ）
+   - 例: `ドキュメント\Pfft_Projects\tutorial\`
 4. [保存] ボタンをクリック
 
 **確認:**
 - タイトルバーが「Pfft_maker - チュートリアルプロジェクト.pfft」に変わる
+
+**注意:**
+- プロジェクトファイル（.pfft）は任意の場所に保存できます
+- ユーザーデータ（設定、ライブラリなど）は `%APPDATA%\Pfft_maker` に自動保存されます
 
 ### Step 3-2: シーン名を入力
 
@@ -379,8 +457,13 @@ python run.py
 **Ctrl + S** を押してプロジェクトを保存します。
 
 ```
-ステータスバー: 保存しました: E:\works\tutorial\チュートリアルプロジェクト.pfft
+ステータスバー: 保存しました: [保存フォルダ]\チュートリアルプロジェクト.pfft
 ```
+
+**バックアップについて:**
+- 起動時に自動バックアップが作成されます（24時間間隔）
+- バックアップは `%APPDATA%\Pfft_maker\backups\` に保存されます
+- 30日間保持、最低10個のバックアップを保持
 
 ### Step 5-2: テンプレートとして保存（オプション）
 
@@ -427,7 +510,7 @@ python run.py
 │   ファイル名:            │
 │   [tutorial_prompts.txt] │
 │   保存先:                │
-│   [E:\works\tutorial\]   │
+│   [任意のフォルダ]       │
 │   [参照...]              │
 │                          │
 │ オプション:              │
@@ -438,13 +521,17 @@ python run.py
 └─────────────────────────┘
 ```
 
+**または、プレビューパネルから直接出力:**
+- 右パネルの **[ファイル出力]** ボタンをクリック
+- シーンヘッダーなし、1シーン1行形式で出力されます
+
 ### Step 6-2: 出力実行
 
 [出力] ボタンをクリックします。
 
 **確認:**
 ```
-ステータスバー: プロンプトを出力しました: E:\works\tutorial\tutorial_prompts.txt
+ステータスバー: プロンプトを出力しました: [保存フォルダ]\tutorial_prompts.txt
 ```
 
 ### Step 6-3: 出力ファイルの確認
@@ -471,13 +558,17 @@ classroom interior, desks in rows, BREAK, __キャラ/MAID__, BREAK, standing, B
 
 ```bash
 # Stable Diffusion WebUIのディレクトリに移動
-cd E:\EasyReforge
+cd [Stable Diffusion WebUIのフォルダ]
 
 # WebUIを起動
 webui-user.bat
 ```
 
 ブラウザで http://127.0.0.1:7860 にアクセスします。
+
+**注意:**
+- Stable Diffusion WebUIと **Dynamic Prompts拡張** が必要です
+- ワイルドカード（`__filename__`）を展開するために必須
 
 ### Step 7-2: Prompts from fileを設定
 
@@ -497,12 +588,12 @@ Use same random seed for all lines: No
 ### Step 7-3: プロンプトファイルを読み込み
 
 1. **[参照...]** ボタンをクリック
-2. `E:\works\tutorial\tutorial_prompts.txt` を選択
+2. Part 6で出力した `tutorial_prompts.txt` を選択
 3. [開く] ボタンをクリック
 
 **確認:**
 ```
-File or text: E:\works\tutorial\tutorial_prompts.txt
+File or text: [保存フォルダ]\tutorial_prompts.txt
 ```
 
 ### Step 7-4: 生成設定
@@ -632,8 +723,13 @@ outputs/txt2img-images/2025-10-14/
 ### トラブル時は
 
 - [ユーザーガイド - トラブルシューティング](USER_GUIDE.md#トラブルシューティング)
-- ログファイルを確認: `logs/pfft_maker_YYYYMMDD.log`
-- Issue報告: https://github.com/anthropics/pfft_maker/issues
+- ログファイルを確認:
+  - **EXE版**: `[EXE実行フォルダ]\logs\pfft_maker_YYYYMMDD.log`
+  - **開発環境**: `[プロジェクトフォルダ]\logs\pfft_maker_YYYYMMDD.log`
+- データフォルダ: `%APPDATA%\Pfft_maker`
+  - 設定ファイル: `settings.json`
+  - シーンライブラリ: `scene_library.json`
+  - テンプレート: `templates.json`
 
 ---
 

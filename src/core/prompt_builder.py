@@ -174,6 +174,6 @@ class PromptBuilder:
 
         lines = self.build_all_prompts(project, include_comment, completed_only)
 
-        # ファイルに書き込み
+        # ファイルに書き込み（1シーン = 1行）
         output_file = Path(output_path)
         output_file.write_text("\n".join(lines), encoding="utf-8")

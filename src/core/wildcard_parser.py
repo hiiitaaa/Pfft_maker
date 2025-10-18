@@ -39,6 +39,15 @@ class WildcardParser:
         """
         self.wildcard_dir = wildcard_dir
         self.prompts: List[Prompt] = []
+        self.existing_prompts_map: dict[str, Prompt] = {}  # ID -> Prompt のマップ
+
+    def set_existing_prompts(self, existing_prompts: List[Prompt]):
+        """既存のプロンプトデータをセット（ラベルマージ用）
+
+        Args:
+            existing_prompts: 既存のPromptオブジェクトのリスト（CSVから読み込んだもの）
+        """
+        self.existing_prompts_map = {p.id: p for p in existing_prompts}
 
     def scan_directory(self, progress_callback=None, exclude_patterns: Optional[List[str]] = None) -> List[Prompt]:
         """ディレクトリを再帰的にスキャン
@@ -97,19 +106,40 @@ class WildcardParser:
             file_stem = file_path.stem
             prompt_id = generate_id("prompt", file_stem, line_num)
 
-            # Promptオブジェクト生成
-            prompt_obj = Prompt(
-                id=prompt_id,
-                source_file=relative_path,
-                original_line_number=line_num,
-                original_number=original_number,
-                label_ja=label,
-                label_en="",
-                prompt=prompt,
-                category=category,
-                tags=[],
-                label_source="auto_extract"
-            )
+            # 既存プロンプトがあればラベル情報を保持
+            existing_prompt = self.existing_prompts_map.get(prompt_id)
+
+            if existing_prompt:
+                # 既存プロンプトのラベル情報を使用
+                # プロンプト本文とカテゴリは最新のワイルドカードから取得
+                prompt_obj = Prompt(
+                    id=prompt_id,
+                    source_file=relative_path,
+                    original_line_number=line_num,
+                    original_number=original_number,
+                    label_ja=existing_prompt.label_ja,  # 既存ラベルを保持
+                    label_en=existing_prompt.label_en,
+                    prompt=prompt,  # 最新のプロンプト本文
+                    category=category,  # 最新のカテゴリ
+                    tags=existing_prompt.tags,  # 既存タグを保持
+                    label_source=existing_prompt.label_source,  # ai_generated等を保持
+                    created_date=existing_prompt.created_date,
+                    last_used=existing_prompt.last_used
+                )
+            else:
+                # 新規プロンプト
+                prompt_obj = Prompt(
+                    id=prompt_id,
+                    source_file=relative_path,
+                    original_line_number=line_num,
+                    original_number=original_number,
+                    label_ja=label,
+                    label_en="",
+                    prompt=prompt,
+                    category=category,
+                    tags=[],
+                    label_source="auto_extract"
+                )
 
             prompts.append(prompt_obj)
 

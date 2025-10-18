@@ -103,12 +103,22 @@ class LibraryManager:
     ) -> List[Prompt]:
         """ワイルドカードファイルをスキャンしてライブラリを構築
 
+        既存のCSVがあれば読み込み、ラベル情報をマージします。
+
         Args:
             progress_callback: 進捗コールバック(current, total, message)
 
         Returns:
             Promptオブジェクトのリスト
         """
+        # 既存のCSVがあれば読み込んでラベル情報を保持
+        csv_path = self.settings.get_library_csv_path()
+        if csv_path.exists():
+            if progress_callback:
+                progress_callback(0, 1, "Loading existing labels from CSV...")
+            existing_prompts = self.load_from_csv(csv_path)
+            self.parser.set_existing_prompts(existing_prompts)
+
         if progress_callback:
             progress_callback(0, 1, "Scanning wildcard files...")
 

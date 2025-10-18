@@ -585,6 +585,8 @@ class MainWindow(QMainWindow):
         dialog = ProjectSaveDialog(
             project=self.current_project,
             project_library_manager=self.library_panel.project_library_manager,
+            scene_library_manager=self.scene_editor.scene_library_manager,
+            existing_item_id=self.current_project.source_library_id,  # 元の作品IDを渡す
             parent=self
         )
 
@@ -647,6 +649,12 @@ class MainWindow(QMainWindow):
             # 全シーンをプロジェクトに追加
             for scene in scenes:
                 self.current_project.add_scene(scene)
+
+            # 作品名を更新
+            self.current_project.name = project_item.name
+
+            # 作品IDを保持（上書き保存用）
+            self.current_project.source_library_id = project_item.id
 
             # シーンエディタを更新
             self.scene_editor.set_project(self.current_project)

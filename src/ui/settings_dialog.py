@@ -357,6 +357,34 @@ class SettingsDialog(QDialog):
         wildcard_group.setLayout(wildcard_layout)
         layout.addWidget(wildcard_group)
 
+        # LoRAディレクトリ設定
+        lora_group = QGroupBox("LoRAディレクトリ")
+        lora_layout = QVBoxLayout()
+
+        lora_info = QLabel(
+            "LoRAファイルが保存されているフォルダを指定してください。\n"
+            "例: C:\\stable-diffusion-webui\\models\\Lora"
+        )
+        lora_info.setStyleSheet("color: gray; font-size: 10pt;")
+        lora_layout.addWidget(lora_info)
+
+        # LoRAディレクトリ
+        lora_dir_layout = QHBoxLayout()
+        lora_dir_layout.addWidget(QLabel("LoRAフォルダ:"))
+
+        self.lora_dir_input = QLineEdit()
+        self.lora_dir_input.setText(self.settings.lora_directory)
+        lora_dir_layout.addWidget(self.lora_dir_input)
+
+        lora_browse_button = QPushButton("参照...")
+        lora_browse_button.clicked.connect(lambda: self._browse_directory(self.lora_dir_input))
+        lora_dir_layout.addWidget(lora_browse_button)
+
+        lora_layout.addLayout(lora_dir_layout)
+
+        lora_group.setLayout(lora_layout)
+        layout.addWidget(lora_group)
+
         layout.addStretch()
 
         return tab
@@ -746,6 +774,7 @@ class SettingsDialog(QDialog):
         # パス設定を保存
         self.settings.source_wildcard_dir = self.source_dir_input.text()
         self.settings.local_wildcard_dir = self.local_dir_input.text()
+        self.settings.lora_directory = self.lora_dir_input.text()
 
         # LM Studio設定を保存
         self.settings.lm_studio_endpoint = self.lm_studio_endpoint_input.text().strip() or self.settings.DEFAULT_LM_STUDIO_ENDPOINT

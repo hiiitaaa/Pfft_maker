@@ -26,6 +26,7 @@ class Project(SerializableMixin):
         scenes: シーンのリスト（最大30個）
         common_prompts: 共通プロンプト（キー: 名前、値: プロンプト）
         metadata: メタデータ（拡張用）
+        source_library_id: 元の作品ライブラリアイテムのID（読み込み元がある場合）
     """
     name: str
     created_date: datetime
@@ -34,6 +35,7 @@ class Project(SerializableMixin):
     scenes: List[Scene] = field(default_factory=list)
     common_prompts: List[CommonPrompt] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    source_library_id: str | None = None  # 元の作品ライブラリアイテムのID
 
     def to_dict(self) -> Dict[str, Any]:
         """辞書に変換

@@ -11,6 +11,7 @@ Pfft_makerは、Stable Diffusion WebUIのワイルドカードファイルを一
 - 日本語ラベル付きで検索・選択を容易化
 - 30シーン分のプロンプトを効率的に構築
 - 1行1プロンプト形式でファイル出力（Prompts from file形式）
+- LoRAファイルの自動スキャン・管理（NEW!）
 
 ## 開発状況
 
@@ -58,7 +59,7 @@ Pfft_makerは、Stable Diffusion WebUIのワイルドカードファイルを一
   - ✅ ライブラリパネルに「自作」カテゴリ表示
   - ✅ 使用履歴記録・タグ自動生成
 
-- ✅ **FR-013**: テンプレート機能 ✅ NEW
+- ✅ **FR-013**: テンプレート機能
   - ✅ ProjectTemplate、SceneTemplate、BlockTemplateモデル
   - ✅ TemplateManagerクラス
   - ✅ テンプレート保存ダイアログ
@@ -67,6 +68,16 @@ Pfft_makerは、Stable Diffusion WebUIのワイルドカードファイルを一
   - ✅ 完全テンプレート（プロンプト内容含む）
   - ✅ メインウィンドウ統合
   - ✅ 使用履歴記録
+
+- ✅ **LoRAライブラリ機能** ✅ NEW (2025-10-18)
+  - ✅ .safetensorsファイルの自動スキャン
+  - ✅ Civitai.infoメタデータ読み込み
+  - ✅ トリガーワード・推奨重みの自動取得
+  - ✅ カテゴリ別表示（フォルダ構造反映）
+  - ✅ `<lora:filename:0.8>`形式プロンプト自動生成
+  - ✅ ライブラリパネルに🎨LoRAタブ追加
+  - ✅ 検索・フィルタリング機能
+  - ✅ CSV形式での永続化
 
 ### 次期実装予定
 - 🧪 エンドツーエンドテスト
@@ -106,7 +117,7 @@ pip install -r requirements.txt
 
 ```bash
 # Windowsバッチファイル
-run_app.bat
+Pfft_maker.bat
 
 # または直接実行
 python run.py

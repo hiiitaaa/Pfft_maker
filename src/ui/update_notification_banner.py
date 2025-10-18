@@ -58,11 +58,11 @@ class UpdateNotificationBanner(QFrame):
         message_layout.setSpacing(4)
 
         self.title_label = QLabel("ライブラリに更新があります")
-        self.title_label.setStyleSheet("font-weight: bold; font-size: 13px;")
+        self.title_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #000;")
         message_layout.addWidget(self.title_label)
 
         self.detail_label = QLabel("")
-        self.detail_label.setStyleSheet("font-size: 11px; color: #555;")
+        self.detail_label.setStyleSheet("font-size: 11px; color: #333;")
         message_layout.addWidget(self.detail_label)
 
         layout.addLayout(message_layout)
@@ -145,8 +145,8 @@ class UpdateNotificationBanner(QFrame):
         """スタイル適用"""
         self.setStyleSheet("""
             UpdateNotificationBanner {
-                background-color: #FFF9C4;
-                border: 1px solid #FBC02D;
+                background-color: #E3F2FD;
+                border: 1px solid #2196F3;
                 border-radius: 6px;
             }
         """)

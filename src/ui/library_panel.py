@@ -6,9 +6,11 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTreeWidget,
     QTreeWidgetItem, QLabel, QPushButton, QApplication, QComboBox,
-    QTabWidget, QFrame, QScrollArea, QSizePolicy
+    QTabWidget, QFrame, QScrollArea, QSizePolicy, QMenu, QInputDialog,
+    QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QAction
 from typing import List
 
 from models import Prompt
@@ -18,6 +20,7 @@ from models.project_library import ProjectLibraryItem
 from core.custom_prompt_manager import CustomPromptManager
 from core.scene_library_manager import SceneLibraryManager
 from core.project_library_manager import ProjectLibraryManager
+from core.lora_library_manager import LoraLibraryManager
 from config.settings import Settings
 from utils.logger import get_logger
 
@@ -60,6 +63,10 @@ class LibraryPanel(QWidget):
         self.project_library_manager = ProjectLibraryManager(settings.get_data_dir())
         self.project_library_items: List[ProjectLibraryItem] = []
 
+        # LoRAライブラリ管理
+        self.lora_library_manager = LoraLibraryManager(settings)
+        self.lora_prompts: List[Prompt] = []
+
         # UI構築
         self._create_ui()
 
@@ -76,6 +83,9 @@ class LibraryPanel(QWidget):
 
         # 作品ライブラリを読み込み
         self._load_project_library()
+
+        # LoRAライブラリを読み込み
+        self._load_lora_library()
 
         # ライブラリを自動読み込み（CSVが存在する場合）
         self._auto_load_library()
@@ -101,15 +111,19 @@ class LibraryPanel(QWidget):
         self.wildcard_tab = self._create_wildcard_tab()
         self.tab_widget.addTab(self.wildcard_tab, "ワイルドカード")
 
-        # タブ2: 自作プロンプト
+        # タブ2: LoRAライブラリ（プロンプト構築の初期段階）
+        self.lora_tab = self._create_lora_tab()
+        self.tab_widget.addTab(self.lora_tab, "🎨LoRA")
+
+        # タブ3: 自作プロンプト
         self.custom_tab = self._create_custom_prompts_tab()
         self.tab_widget.addTab(self.custom_tab, "✨自作プロンプト")
 
-        # タブ3: シーンライブラリ（提案4: 新規追加）
+        # タブ4: シーンライブラリ
         self.scene_library_tab = self._create_scene_library_tab()
         self.tab_widget.addTab(self.scene_library_tab, "🎬シーンライブラリ")
 
-        # タブ4: 作品ライブラリ（複数シーンをまとめた作品）
+        # タブ5: 作品ライブラリ（複数シーンをまとめた作品）
         self.project_library_tab = self._create_project_library_tab()
         self.tab_widget.addTab(self.project_library_tab, "📚作品ライブラリ")
 
@@ -347,6 +361,8 @@ class LibraryPanel(QWidget):
         self.scene_tree.setColumnWidth(2, 80)
         self.scene_tree.setColumnWidth(3, 80)
         self.scene_tree.itemDoubleClicked.connect(self._on_scene_item_double_clicked)
+        self.scene_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.scene_tree.customContextMenuRequested.connect(self._on_scene_context_menu)
         layout.addWidget(self.scene_tree)
 
         # シーンライブラリステータス
@@ -413,6 +429,7 @@ class LibraryPanel(QWidget):
                     text-align: left;
                     padding: 4px 8px;
                     background-color: white;
+                    color: #333;
                     border: 1px solid #ddd;
                     border-radius: 3px;
                 }
@@ -1043,6 +1060,8 @@ class LibraryPanel(QWidget):
 
     def reload_custom_prompts(self):
         """自作プロンプトを再読み込み（保存後に呼び出す）"""
+        # ファイルから再読み込み
+        self.custom_prompt_manager.load()
         self._load_custom_prompts()
         self._update_tree()
         self._update_custom_tree()
@@ -1219,6 +1238,8 @@ class LibraryPanel(QWidget):
 
     def reload_scene_library(self):
         """シーンライブラリを再読み込み（保存後に呼び出す）"""
+        # ファイルから再読み込み
+        self.scene_library_manager.load()
         self._load_scene_library()
 
     def _update_scene_top(self):
@@ -1247,12 +1268,17 @@ class LibraryPanel(QWidget):
 
             # シーンボタン
             block_count = len(scene_item.block_templates)
-            btn = QPushButton(f"🎬 {scene_item.name} ({scene_item.usage_count}回 / {block_count}ブロック)")
+            # シーン名が汎用的な名前の場合は省略
+            if scene_item.name in ["無題のシーン", "Untitled Scene", "新規シーン", ""]:
+                btn = QPushButton(f"🎬 {scene_item.usage_count}回使用 / {block_count}ブロック")
+            else:
+                btn = QPushButton(f"🎬 {scene_item.name} ({scene_item.usage_count}回 / {block_count}ブロック)")
             btn.setStyleSheet("""
                 QPushButton {
                     text-align: left;
                     padding: 4px 8px;
                     background-color: white;
+                    color: #333;
                     border: 1px solid #ddd;
                     border-radius: 3px;
                 }
@@ -1294,12 +1320,17 @@ class LibraryPanel(QWidget):
             # シーンボタン
             block_count = len(scene_item.block_templates)
             last_used_str = scene_item.last_used.strftime("%m/%d %H:%M")
-            btn = QPushButton(f"🎬 {scene_item.name} ({last_used_str} / {block_count}ブロック)")
+            # シーン名が汎用的な名前の場合は省略
+            if scene_item.name in ["無題のシーン", "Untitled Scene", "新規シーン", ""]:
+                btn = QPushButton(f"🎬 {last_used_str} / {block_count}ブロック")
+            else:
+                btn = QPushButton(f"🎬 {scene_item.name} ({last_used_str} / {block_count}ブロック)")
             btn.setStyleSheet("""
                 QPushButton {
                     text-align: left;
                     padding: 4px 8px;
                     background-color: white;
+                    color: #333;
                     border: 1px solid #ddd;
                     border-radius: 3px;
                 }
@@ -1525,6 +1556,8 @@ class LibraryPanel(QWidget):
         self.project_tree.setColumnWidth(2, 80)
         self.project_tree.setColumnWidth(3, 80)
         self.project_tree.itemDoubleClicked.connect(self._on_project_item_double_clicked)
+        self.project_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.project_tree.customContextMenuRequested.connect(self._on_project_context_menu)
         layout.addWidget(self.project_tree)
 
         # 作品ライブラリステータス
@@ -1570,6 +1603,8 @@ class LibraryPanel(QWidget):
 
     def reload_project_library(self):
         """作品ライブラリを再読み込み（保存後に呼び出す）"""
+        # ファイルから再読み込み
+        self.project_library_manager.load()
         self._load_project_library()
 
     def _update_project_top(self):
@@ -1594,12 +1629,17 @@ class LibraryPanel(QWidget):
 
             # 作品ボタン
             scene_count = project_item.get_scene_count()
-            btn = QPushButton(f"📚 {project_item.name} ({project_item.usage_count}回 / {scene_count}シーン)")
+            # プロジェクト名が汎用的な名前の場合は省略
+            if project_item.name in ["無題のプロジェクト", "Untitled Project", "新規プロジェクト"]:
+                btn = QPushButton(f"📚 {project_item.usage_count}回使用 / {scene_count}シーン")
+            else:
+                btn = QPushButton(f"📚 {project_item.name} ({project_item.usage_count}回 / {scene_count}シーン)")
             btn.setStyleSheet("""
                 QPushButton {
                     text-align: left;
                     padding: 4px 8px;
                     background-color: white;
+                    color: #333;
                     border: 1px solid #ddd;
                     border-radius: 3px;
                 }
@@ -1636,12 +1676,17 @@ class LibraryPanel(QWidget):
             # 作品ボタン
             scene_count = project_item.get_scene_count()
             last_used_str = project_item.last_used.strftime("%m/%d %H:%M")
-            btn = QPushButton(f"📚 {project_item.name} ({last_used_str} / {scene_count}シーン)")
+            # プロジェクト名が汎用的な名前の場合は省略
+            if project_item.name in ["無題のプロジェクト", "Untitled Project", "新規プロジェクト"]:
+                btn = QPushButton(f"📚 {last_used_str} / {scene_count}シーン")
+            else:
+                btn = QPushButton(f"📚 {project_item.name} ({last_used_str} / {scene_count}シーン)")
             btn.setStyleSheet("""
                 QPushButton {
                     text-align: left;
                     padding: 4px 8px;
                     background-color: white;
+                    color: #333;
                     border: 1px solid #ddd;
                     border-radius: 3px;
                 }
@@ -1785,4 +1830,627 @@ class LibraryPanel(QWidget):
 
         scene_name = project_item.scenes[scene_index].name
         self.logger.info(f"作品内シーン挿入: {project_item.name}[{scene_index}] - {scene_name}")
+
+    def _on_scene_context_menu(self, position):
+        """シーンツリーの右クリックメニュー表示
+
+        Args:
+            position: 右クリックされた位置
+        """
+        # 右クリックされたアイテムを取得
+        item = self.scene_tree.itemAt(position)
+        if not item:
+            return
+
+        # アイテムのデータを取得
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data or not isinstance(data, SceneLibraryItem):
+            return
+
+        scene_item = data
+
+        # コンテキストメニューを作成
+        menu = QMenu(self)
+
+        # 挿入アクション
+        insert_action = QAction("🎬 挿入", self)
+        insert_action.triggered.connect(lambda: self._insert_scene(scene_item))
+        menu.addAction(insert_action)
+
+        menu.addSeparator()
+
+        # 名前変更アクション
+        rename_action = QAction("✏️ 名前変更", self)
+        rename_action.triggered.connect(lambda: self._on_rename_scene(scene_item))
+        menu.addAction(rename_action)
+
+        # カテゴリ変更アクション
+        category_action = QAction("📁 カテゴリ変更", self)
+        category_action.triggered.connect(lambda: self._on_change_scene_category(scene_item))
+        menu.addAction(category_action)
+
+        menu.addSeparator()
+
+        # 削除アクション
+        delete_action = QAction("🗑️ 削除", self)
+        delete_action.triggered.connect(lambda: self._on_delete_scene(scene_item))
+        menu.addAction(delete_action)
+
+        # メニューを表示
+        menu.exec(self.scene_tree.viewport().mapToGlobal(position))
+
+    def _on_rename_scene(self, scene_item: SceneLibraryItem):
+        """シーン名を変更
+
+        Args:
+            scene_item: 変更するシーンアイテム
+        """
+        # ダイアログで新しい名前を入力
+        new_name, ok = QInputDialog.getText(
+            self,
+            "シーン名変更",
+            "新しいシーン名を入力してください:",
+            text=scene_item.name
+        )
+
+        if not ok or not new_name.strip():
+            return
+
+        # 名前を更新
+        old_name = scene_item.name
+        scene_item.name = new_name.strip()
+
+        # 保存
+        if self.scene_library_manager.update_item(scene_item):
+            self.logger.info(f"シーン名変更: {old_name} → {new_name}")
+            # UI更新
+            self._update_scene_tree()
+            self._update_scene_top()
+            self._update_scene_recent()
+
+            QMessageBox.information(
+                self,
+                "成功",
+                f"シーン名を変更しました。\n\n{old_name} → {new_name}"
+            )
+        else:
+            self.logger.error(f"シーン名変更失敗: {old_name}")
+            QMessageBox.critical(
+                self,
+                "エラー",
+                "シーン名の変更に失敗しました。"
+            )
+
+    def _on_change_scene_category(self, scene_item: SceneLibraryItem):
+        """シーンのカテゴリを変更
+
+        Args:
+            scene_item: 変更するシーンアイテム
+        """
+        # 既存のカテゴリリストを取得
+        categories = self.scene_library_manager.get_categories()
+        if not categories:
+            categories = ["その他"]
+
+        # カテゴリ選択ダイアログ
+        from PyQt6.QtWidgets import QComboBox
+        dialog = QInputDialog(self)
+        dialog.setWindowTitle("カテゴリ変更")
+        dialog.setLabelText("新しいカテゴリを選択または入力してください:")
+        dialog.setComboBoxItems(categories)
+        dialog.setComboBoxEditable(True)
+        dialog.setTextValue(scene_item.category)
+
+        if dialog.exec() != QInputDialog.DialogCode.Accepted:
+            return
+
+        new_category = dialog.textValue().strip()
+        if not new_category:
+            new_category = "その他"
+
+        # カテゴリを更新
+        old_category = scene_item.category
+        scene_item.category = new_category
+
+        # 保存
+        if self.scene_library_manager.update_item(scene_item):
+            self.logger.info(f"シーンカテゴリ変更: {scene_item.name} - {old_category} → {new_category}")
+            # UI更新
+            self._update_scene_tree()
+
+            QMessageBox.information(
+                self,
+                "成功",
+                f"カテゴリを変更しました。\n\nシーン: {scene_item.name}\n{old_category} → {new_category}"
+            )
+        else:
+            self.logger.error(f"カテゴリ変更失敗: {scene_item.name}")
+            QMessageBox.critical(
+                self,
+                "エラー",
+                "カテゴリの変更に失敗しました。"
+            )
+
+    def _on_delete_scene(self, scene_item: SceneLibraryItem):
+        """シーンを削除
+
+        Args:
+            scene_item: 削除するシーンアイテム
+        """
+        # 確認ダイアログ
+        reply = QMessageBox.question(
+            self,
+            "削除確認",
+            f"以下のシーンを削除してもよろしいですか？\n\n"
+            f"シーン名: {scene_item.name}\n"
+            f"カテゴリ: {scene_item.category}\n"
+            f"ブロック数: {len(scene_item.block_templates)}\n"
+            f"使用回数: {scene_item.usage_count}回\n\n"
+            f"※この操作は取り消せません。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # 削除実行
+        if self.scene_library_manager.delete_item(scene_item.id):
+            self.logger.info(f"シーン削除: {scene_item.name}")
+
+            # UI更新
+            self._load_scene_library()
+
+            QMessageBox.information(
+                self,
+                "削除完了",
+                f"シーン「{scene_item.name}」を削除しました。"
+            )
+        else:
+            self.logger.error(f"シーン削除失敗: {scene_item.name}")
+            QMessageBox.critical(
+                self,
+                "エラー",
+                "シーンの削除に失敗しました。"
+            )
+
+    def _on_project_context_menu(self, position):
+        """作品ツリーの右クリックメニュー表示
+
+        Args:
+            position: 右クリックされた位置
+        """
+        # 右クリックされたアイテムを取得
+        item = self.project_tree.itemAt(position)
+        if not item:
+            return
+
+        # アイテムのデータを取得
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data or not isinstance(data, dict):
+            return
+
+        # 作品全体の場合
+        if data.get("type") == "project":
+            project_item = data["item"]
+            self._show_project_context_menu(position, project_item)
+
+        # 個別シーンの場合（作品内シーン）は右クリックメニューなし
+        # （個別シーンは作品の一部なので、直接編集させない）
+
+    def _show_project_context_menu(self, position, project_item: ProjectLibraryItem):
+        """作品の右クリックメニューを表示
+
+        Args:
+            position: 右クリックされた位置
+            project_item: 作品ライブラリアイテム
+        """
+        # コンテキストメニューを作成
+        menu = QMenu(self)
+
+        # 全シーン挿入アクション
+        insert_all_action = QAction("📚 全シーン挿入", self)
+        insert_all_action.triggered.connect(lambda: self._insert_project_all(project_item))
+        menu.addAction(insert_all_action)
+
+        menu.addSeparator()
+
+        # 名前変更アクション
+        rename_action = QAction("✏️ 名前変更", self)
+        rename_action.triggered.connect(lambda: self._on_rename_project(project_item))
+        menu.addAction(rename_action)
+
+        # カテゴリ変更アクション
+        category_action = QAction("📁 カテゴリ変更", self)
+        category_action.triggered.connect(lambda: self._on_change_project_category(project_item))
+        menu.addAction(category_action)
+
+        menu.addSeparator()
+
+        # 削除アクション
+        delete_action = QAction("🗑️ 削除", self)
+        delete_action.triggered.connect(lambda: self._on_delete_project(project_item))
+        menu.addAction(delete_action)
+
+        # メニューを表示
+        menu.exec(self.project_tree.viewport().mapToGlobal(position))
+
+    def _on_rename_project(self, project_item: ProjectLibraryItem):
+        """作品名を変更
+
+        Args:
+            project_item: 変更する作品アイテム
+        """
+        # ダイアログで新しい名前を入力
+        new_name, ok = QInputDialog.getText(
+            self,
+            "作品名変更",
+            "新しい作品名を入力してください:",
+            text=project_item.name
+        )
+
+        if not ok or not new_name.strip():
+            return
+
+        # 名前を更新
+        old_name = project_item.name
+        project_item.name = new_name.strip()
+
+        # 保存
+        if self.project_library_manager.update_item(project_item):
+            self.logger.info(f"作品名変更: {old_name} → {new_name}")
+            # UI更新
+            self._update_project_tree()
+            self._update_project_top()
+            self._update_project_recent()
+
+            QMessageBox.information(
+                self,
+                "成功",
+                f"作品名を変更しました。\n\n{old_name} → {new_name}"
+            )
+        else:
+            self.logger.error(f"作品名変更失敗: {old_name}")
+            QMessageBox.critical(
+                self,
+                "エラー",
+                "作品名の変更に失敗しました。"
+            )
+
+    def _on_change_project_category(self, project_item: ProjectLibraryItem):
+        """作品のカテゴリを変更
+
+        Args:
+            project_item: 変更する作品アイテム
+        """
+        # 既存のカテゴリリストを取得
+        categories = self.project_library_manager.get_categories()
+        if not categories:
+            categories = ["その他"]
+
+        # カテゴリ選択ダイアログ
+        dialog = QInputDialog(self)
+        dialog.setWindowTitle("カテゴリ変更")
+        dialog.setLabelText("新しいカテゴリを選択または入力してください:")
+        dialog.setComboBoxItems(categories)
+        dialog.setComboBoxEditable(True)
+        dialog.setTextValue(project_item.category)
+
+        if dialog.exec() != QInputDialog.DialogCode.Accepted:
+            return
+
+        new_category = dialog.textValue().strip()
+        if not new_category:
+            new_category = "その他"
+
+        # カテゴリを更新
+        old_category = project_item.category
+        project_item.category = new_category
+
+        # 保存
+        if self.project_library_manager.update_item(project_item):
+            self.logger.info(f"作品カテゴリ変更: {project_item.name} - {old_category} → {new_category}")
+            # UI更新
+            self._update_project_tree()
+
+            QMessageBox.information(
+                self,
+                "成功",
+                f"カテゴリを変更しました。\n\n作品: {project_item.name}\n{old_category} → {new_category}"
+            )
+        else:
+            self.logger.error(f"カテゴリ変更失敗: {project_item.name}")
+            QMessageBox.critical(
+                self,
+                "エラー",
+                "カテゴリの変更に失敗しました。"
+            )
+
+    def _on_delete_project(self, project_item: ProjectLibraryItem):
+        """作品を削除
+
+        Args:
+            project_item: 削除する作品アイテム
+        """
+        # 確認ダイアログ
+        scene_count = project_item.get_scene_count()
+        reply = QMessageBox.question(
+            self,
+            "削除確認",
+            f"以下の作品を削除してもよろしいですか？\n\n"
+            f"作品名: {project_item.name}\n"
+            f"カテゴリ: {project_item.category}\n"
+            f"シーン数: {scene_count}\n"
+            f"使用回数: {project_item.usage_count}回\n\n"
+            f"※この操作は取り消せません。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # 削除実行
+        if self.project_library_manager.delete_item(project_item.id):
+            self.logger.info(f"作品削除: {project_item.name}")
+
+            # UI更新
+            self._load_project_library()
+
+            QMessageBox.information(
+                self,
+                "削除完了",
+                f"作品「{project_item.name}」を削除しました。"
+            )
+        else:
+            self.logger.error(f"作品削除失敗: {project_item.name}")
+            QMessageBox.critical(
+                self,
+                "エラー",
+                "作品の削除に失敗しました。"
+            )
+
+    def _create_lora_tab(self):
+        """LoRAタブを作成"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(10)
+
+        # タイトルと説明
+        info_frame = QFrame()
+        info_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        info_frame.setStyleSheet("""
+            QFrame {
+                background-color: #fff0f5;
+                border: 1px solid #ff69b4;
+                border-radius: 4px;
+                padding: 8px;
+            }
+        """)
+        info_layout = QVBoxLayout(info_frame)
+        info_layout.setSpacing(3)
+
+        info_label = QLabel(
+            "🎨 LoRAライブラリ：LoRAファイルを管理\n"
+            "💡 LoRAをダブルクリック → <lora:filename:0.8>形式で挿入\n"
+            "💡 「スキャン」で最新のLoRAファイルを取り込み"
+        )
+        info_label.setStyleSheet("color: #333; font-size: 9pt;")
+        info_layout.addWidget(info_label)
+
+        layout.addWidget(info_frame)
+
+        # ボタン
+        button_layout = QHBoxLayout()
+
+        self.lora_scan_button = QPushButton("🔍 スキャン")
+        self.lora_scan_button.setStyleSheet("""
+            QPushButton {
+                background-color: #ff69b4;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #ff1493;
+            }
+        """)
+        self.lora_scan_button.clicked.connect(self._on_lora_scan)
+        button_layout.addWidget(self.lora_scan_button)
+
+        self.lora_reload_button = QPushButton("🔄 再読み込み")
+        self.lora_reload_button.clicked.connect(self._on_lora_reload)
+        button_layout.addWidget(self.lora_reload_button)
+
+        button_layout.addStretch()
+
+        layout.addLayout(button_layout)
+
+        # 検索バー
+        self.lora_search_bar = QLineEdit()
+        self.lora_search_bar.setPlaceholderText("LoRAを検索...")
+        self.lora_search_bar.textChanged.connect(self._on_lora_search_input)
+        layout.addWidget(self.lora_search_bar)
+
+        # カテゴリフィルタ
+        category_layout = QHBoxLayout()
+        category_layout.addWidget(QLabel("カテゴリ:"))
+
+        self.lora_category_filter = QComboBox()
+        self.lora_category_filter.addItem("全て")
+        self.lora_category_filter.currentTextChanged.connect(self._on_lora_category_changed)
+        category_layout.addWidget(self.lora_category_filter)
+
+        layout.addLayout(category_layout)
+
+        # LoRA一覧ツリー
+        self.lora_tree = QTreeWidget()
+        self.lora_tree.setHeaderLabels(["名前", "プロンプト", "タグ"])
+        self.lora_tree.setColumnWidth(0, 250)
+        self.lora_tree.setColumnWidth(1, 300)
+        self.lora_tree.setColumnWidth(2, 150)
+        self.lora_tree.itemDoubleClicked.connect(self._on_lora_item_double_clicked)
+        layout.addWidget(self.lora_tree)
+
+        # LoRAライブラリステータス
+        self.lora_status_label = QLabel("LoRAライブラリ: 0件")
+        self.lora_status_label.setStyleSheet("color: gray; font-size: 9pt;")
+        layout.addWidget(self.lora_status_label)
+
+        return tab
+
+    def _load_lora_library(self):
+        """LoRAライブラリをCSVから読み込み"""
+        try:
+            self.lora_prompts = self.lora_library_manager.load_from_csv()
+            self.logger.info(f"LoRAライブラリ読み込み: {len(self.lora_prompts)}件")
+
+            # UI更新
+            self._update_lora_tree()
+            self._update_lora_categories()
+
+        except Exception as e:
+            self.logger.error(f"LoRAライブラリ読み込み失敗: {e}")
+
+    def _on_lora_scan(self):
+        """LoRAフォルダをスキャン"""
+        from PyQt6.QtWidgets import QProgressDialog
+
+        # LoRAディレクトリが設定されているか確認
+        lora_dir = self.lora_library_manager.settings.get_lora_dir()
+        if not lora_dir or not lora_dir.exists():
+            QMessageBox.warning(
+                self,
+                "LoRAディレクトリ未設定",
+                "LoRAディレクトリが設定されていません。\n"
+                "設定画面でLoRAフォルダを指定してください。"
+            )
+            return
+
+        # プログレスダイアログ
+        progress = QProgressDialog("LoRAファイルをスキャン中...", "キャンセル", 0, 100, self)
+        progress.setWindowTitle("LoRAスキャン")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.show()
+
+        def progress_callback(current, total, message):
+            if total > 0:
+                progress.setMaximum(total)
+                progress.setValue(current)
+            progress.setLabelText(message)
+            QApplication.processEvents()
+
+        try:
+            # スキャン実行
+            self.lora_prompts = self.lora_library_manager.scan_and_build_library(progress_callback)
+
+            # CSVに保存
+            self.lora_library_manager.save_to_csv()
+
+            # UI更新
+            self._update_lora_tree()
+            self._update_lora_categories()
+
+            progress.close()
+
+            QMessageBox.information(
+                self,
+                "スキャン完了",
+                f"{len(self.lora_prompts)}件のLoRAファイルを検出しました。"
+            )
+
+        except Exception as e:
+            progress.close()
+            self.logger.error(f"LoRAスキャン失敗: {e}")
+            QMessageBox.critical(
+                self,
+                "エラー",
+                f"LoRAスキャンに失敗しました。\n\n{str(e)}"
+            )
+
+    def _on_lora_reload(self):
+        """LoRAライブラリを再読み込み"""
+        self._load_lora_library()
+        QMessageBox.information(
+            self,
+            "再読み込み完了",
+            f"{len(self.lora_prompts)}件のLoRAを読み込みました。"
+        )
+
+    def _on_lora_search_input(self, text: str):
+        """LoRA検索入力"""
+        self._update_lora_tree(search_text=text)
+
+    def _on_lora_category_changed(self, category: str):
+        """LoRAカテゴリフィルタ変更"""
+        self._update_lora_tree()
+
+    def _update_lora_tree(self, search_text: str = ""):
+        """LoRAツリーを更新"""
+        self.lora_tree.clear()
+
+        if not search_text:
+            search_text = self.lora_search_bar.text()
+
+        category_filter = self.lora_category_filter.currentText()
+
+        # フィルタリング
+        filtered_loras = []
+        for lora in self.lora_prompts:
+            # カテゴリフィルタ
+            if category_filter != "全て" and lora.category != category_filter:
+                continue
+
+            # 検索フィルタ
+            if search_text:
+                search_lower = search_text.lower()
+                if not (search_lower in lora.label_ja.lower() or
+                        search_lower in lora.label_en.lower() or
+                        search_lower in lora.prompt.lower() or
+                        any(search_lower in tag.lower() for tag in lora.tags)):
+                    continue
+
+            filtered_loras.append(lora)
+
+        # ツリーに追加
+        for lora in filtered_loras:
+            item = QTreeWidgetItem([
+                lora.label_ja or lora.source_file,
+                lora.prompt,
+                ", ".join(lora.tags[:3]) if lora.tags else ""
+            ])
+            item.setData(0, Qt.ItemDataRole.UserRole, lora)
+            self.lora_tree.addTopLevelItem(item)
+
+        # ステータス更新
+        self.lora_status_label.setText(f"LoRAライブラリ: {len(filtered_loras)}件 / 全{len(self.lora_prompts)}件")
+
+    def _update_lora_categories(self):
+        """LoRAカテゴリリストを更新"""
+        categories = set()
+        for lora in self.lora_prompts:
+            if lora.category:
+                categories.add(lora.category)
+
+        current_category = self.lora_category_filter.currentText()
+        self.lora_category_filter.clear()
+        self.lora_category_filter.addItem("全て")
+        for category in sorted(categories):
+            self.lora_category_filter.addItem(category)
+
+        # 以前の選択を復元
+        index = self.lora_category_filter.findText(current_category)
+        if index >= 0:
+            self.lora_category_filter.setCurrentIndex(index)
+
+    def _on_lora_item_double_clicked(self, item: QTreeWidgetItem, column: int):
+        """LoRA項目ダブルクリック"""
+        lora = item.data(0, Qt.ItemDataRole.UserRole)
+        if lora:
+            # Promptオブジェクトとして送信（固定テキストとして挿入）
+            self.prompt_selected.emit(lora)
+            self.logger.info(f"LoRA選択: {lora.label_ja} - {lora.prompt}")
 

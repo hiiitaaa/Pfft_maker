@@ -4,6 +4,8 @@
 """
 
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Optional, List
 
@@ -14,10 +16,53 @@ class Settings:
     JSON形式で設定を保存・読み込み。
     """
 
-    # デフォルト値
-    DEFAULT_SOURCE_WILDCARD_DIR = r"E:\EasyReforge\Model\wildcards"
-    DEFAULT_LOCAL_WILDCARD_DIR = r"E:\tool\Pfft_maker\wildcards"
-    DEFAULT_DATA_DIR = r"E:\tool\Pfft_maker\data"
+    @staticmethod
+    def get_user_data_root() -> Path:
+        r"""ユーザーデータのルートディレクトリを取得
+
+        Returns:
+            Windows: %APPDATA%\Pfft_maker
+            ポータブル: EXE実行フォルダ\user_data
+        """
+        # ポータブルモード判定（PORTABLE.txt の存在チェック）
+        if getattr(sys, 'frozen', False):
+            # PyInstallerでEXE化されている場合
+            app_dir = Path(sys.executable).parent
+            if (app_dir / "PORTABLE.txt").exists():
+                # ポータブルモード
+                return app_dir / "user_data"
+        else:
+            # 開発環境：プロジェクトルートを使用
+            project_root = Path(__file__).parent.parent.parent
+            if (project_root / "PORTABLE.txt").exists():
+                return project_root / "user_data"
+
+        # 通常モード: %APPDATA% を使用
+        appdata = os.environ.get('APPDATA')
+        if not appdata:
+            # APPDATAが取得できない場合はホームディレクトリ
+            appdata = str(Path.home())
+        return Path(appdata) / "Pfft_maker"
+
+    @classmethod
+    def get_default_data_dir(cls) -> str:
+        """デフォルトデータディレクトリ"""
+        return str(cls.get_user_data_root() / "user_data")
+
+    @classmethod
+    def get_default_wildcard_dir(cls) -> str:
+        """デフォルトワイルドカードディレクトリ"""
+        return str(cls.get_user_data_root() / "wildcards")
+
+    @classmethod
+    def get_default_backup_dir(cls) -> str:
+        """デフォルトバックアップディレクトリ"""
+        return str(cls.get_user_data_root() / "backups")
+
+    # デフォルト値（相対パスまたは%APPDATA%）
+    DEFAULT_SOURCE_WILDCARD_DIR = ""  # 初回起動時にユーザーが設定
+    DEFAULT_LOCAL_WILDCARD_DIR = ""   # get_default_wildcard_dir()で動的取得
+    DEFAULT_DATA_DIR = ""              # get_default_data_dir()で動的取得
     DEFAULT_EXCLUDE_PATTERNS = [
         "backup_*",      # バックアップフォルダ
         ".git",          # Gitリポジトリ
@@ -39,14 +84,21 @@ class Settings:
             config_path: 設定ファイルパス（Noneの場合はデフォルトパス）
         """
         if config_path is None:
-            config_path = Path(__file__).parent.parent.parent / "data" / "settings.json"
+            # ユーザーデータルートに settings.json を保存
+            user_root = self.get_user_data_root()
+            config_path = user_root / "settings.json"
 
         self.config_path = config_path
+
+        # デフォルト値を動的に設定
         self.source_wildcard_dir: str = self.DEFAULT_SOURCE_WILDCARD_DIR
-        self.local_wildcard_dir: str = self.DEFAULT_LOCAL_WILDCARD_DIR
-        self.data_dir: str = self.DEFAULT_DATA_DIR
+        self.local_wildcard_dir: str = self.get_default_wildcard_dir()
+        self.data_dir: str = self.get_default_data_dir()
         self.exclude_patterns: list = self.DEFAULT_EXCLUDE_PATTERNS.copy()
         self.common_prompts: List = []  # CommonPromptのリスト
+
+        # LoRA設定
+        self.lora_directory: str = ""  # LoRAディレクトリ（未設定の場合は空）
 
         # LM Studio設定
         self.lm_studio_endpoint: str = self.DEFAULT_LM_STUDIO_ENDPOINT
@@ -69,9 +121,12 @@ class Settings:
                 data = json.load(f)
 
             self.source_wildcard_dir = data.get('source_wildcard_dir', self.DEFAULT_SOURCE_WILDCARD_DIR)
-            self.local_wildcard_dir = data.get('local_wildcard_dir', self.DEFAULT_LOCAL_WILDCARD_DIR)
-            self.data_dir = data.get('data_dir', self.DEFAULT_DATA_DIR)
+            self.local_wildcard_dir = data.get('local_wildcard_dir', self.get_default_wildcard_dir())
+            self.data_dir = data.get('data_dir', self.get_default_data_dir())
             self.exclude_patterns = data.get('exclude_patterns', self.DEFAULT_EXCLUDE_PATTERNS.copy())
+
+            # LoRA設定を読み込み
+            self.lora_directory = data.get('lora_directory', '')
 
             # LM Studio設定を読み込み
             self.lm_studio_endpoint = data.get('lm_studio_endpoint', self.DEFAULT_LM_STUDIO_ENDPOINT)
@@ -106,6 +161,7 @@ class Settings:
             'data_dir': self.data_dir,
             'exclude_patterns': self.exclude_patterns,
             'common_prompts': [cp.to_dict() for cp in self.common_prompts],
+            'lora_directory': self.lora_directory,
             'lm_studio_endpoint': self.lm_studio_endpoint,
             'lm_studio_model': self.lm_studio_model,
             'lm_studio_max_concurrent': self.lm_studio_max_concurrent
@@ -145,6 +201,24 @@ class Settings:
             Pathオブジェクト
         """
         return self.get_data_dir() / "prompts_library.csv"
+
+    def get_lora_library_csv_path(self) -> Path:
+        """LoRAライブラリCSVパスを取得
+
+        Returns:
+            Pathオブジェクト
+        """
+        return self.get_data_dir() / "lora_library.csv"
+
+    def get_lora_dir(self) -> Path | None:
+        """LoRAディレクトリを取得
+
+        Returns:
+            Pathオブジェクト（未設定の場合はNone）
+        """
+        if self.lora_directory:
+            return Path(self.lora_directory)
+        return None
 
     def get_labels_json_path(self) -> Path:
         """ラベルメタデータJSONパスを取得

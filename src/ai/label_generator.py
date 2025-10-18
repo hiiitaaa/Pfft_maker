@@ -325,7 +325,9 @@ class LabelGenerator:
                     return 0, total, errors
 
                 # 進捗表示
-                processed = batch_status.request_counts.get("processing", 0) + batch_status.request_counts.get("succeeded", 0)
+                processing_count = getattr(batch_status.request_counts, 'processing', 0) or 0
+                succeeded_count = getattr(batch_status.request_counts, 'succeeded', 0) or 0
+                processed = processing_count + succeeded_count
                 if progress_callback:
                     progress_callback(
                         processed,

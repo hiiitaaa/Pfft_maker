@@ -3,6 +3,8 @@
 シーンの編集（ブロック追加・削除・移動）を行うパネル。
 """
 
+from typing import List
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QListWidget, QListWidgetItem, QTabWidget,
@@ -77,6 +79,28 @@ class SceneEditorPanel(QWidget):
         delete_scene_btn = QPushButton("削除")
         delete_scene_btn.clicked.connect(self._on_delete_scene)
         title_layout.addWidget(delete_scene_btn)
+
+        # 一括編集ボタン
+        batch_edit_btn = QPushButton("⚙️ 一括編集")
+        batch_edit_btn.clicked.connect(self._on_batch_edit)
+        batch_edit_btn.setToolTip("複数シーンのプロンプトを一括で置換・追加・削除")
+        batch_edit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+            QPushButton:pressed {
+                background-color: #6A1B9A;
+            }
+        """)
+        title_layout.addWidget(batch_edit_btn)
 
         self.insert_scene_btn = QPushButton("シーン読み込み")
         self.insert_scene_btn.clicked.connect(self._on_load_scene_from_library)
@@ -163,7 +187,7 @@ class SceneEditorPanel(QWidget):
 
         layout.addLayout(info_layout)
 
-        # 💾 シーンに保存ボタン（重要！）
+        # 💾 シーンに保存ボタン + プレビューへ出力ボタン（横並び）
         save_button_layout = QHBoxLayout()
         save_button_layout.addStretch()
 
@@ -188,6 +212,30 @@ class SceneEditorPanel(QWidget):
             }
         """)
         save_button_layout.addWidget(self.save_to_scene_btn)
+
+        # プレビューへ出力ボタン
+        self.save_to_preview_btn = QPushButton("🖼️ プレビューへ出力")
+        self.save_to_preview_btn.clicked.connect(self._on_save_to_preview)
+        self.save_to_preview_btn.setToolTip("シーンをプレビューに表示します。全シーン保存後に出力・コピーできます。")
+        self.save_to_preview_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 12pt;
+            }
+            QPushButton:hover {
+                background-color: #45A049;
+            }
+            QPushButton:pressed {
+                background-color: #388E3C;
+            }
+        """)
+        save_button_layout.addWidget(self.save_to_preview_btn)
+
         save_button_layout.addStretch()
 
         layout.addLayout(save_button_layout)
@@ -210,35 +258,6 @@ class SceneEditorPanel(QWidget):
             "編集後は上の「💾 シーンに保存」ボタンをクリックしてください。"
         )
         layout.addWidget(self.prompt_text_edit)
-
-        # 🖼️ シーンを保存（プレビューへ表示）ボタン
-        preview_button_layout = QHBoxLayout()
-        preview_button_layout.addStretch()
-
-        self.save_to_preview_btn = QPushButton("🖼️ シーンを保存（プレビューへ表示）")
-        self.save_to_preview_btn.clicked.connect(self._on_save_to_preview)
-        self.save_to_preview_btn.setToolTip("シーンをプレビューに表示します。全シーン保存後に出力・コピーできます。")
-        self.save_to_preview_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 12pt;
-            }
-            QPushButton:hover {
-                background-color: #45A049;
-            }
-            QPushButton:pressed {
-                background-color: #388E3C;
-            }
-        """)
-        preview_button_layout.addWidget(self.save_to_preview_btn)
-        preview_button_layout.addStretch()
-
-        layout.addLayout(preview_button_layout)
 
     def set_project(self, project: Project):
         """プロジェクトを設定
@@ -512,12 +531,19 @@ class SceneEditorPanel(QWidget):
             )
             return
 
-        # ブロック数チェック
+        # テキストエディタに内容があるがブロックが空の場合、自動的にシーンに保存
+        prompt_text = self.prompt_text_edit.toPlainText().strip()
+        if not self.current_scene.blocks and prompt_text:
+            # 自動的にシーンに保存
+            self._on_save_to_scene()
+            logger.info(f"[プレビュー表示] テキストを自動的にシーンに保存しました")
+
+        # ブロック数チェック（自動保存後も空の場合）
         if not self.current_scene.blocks:
             QMessageBox.warning(
                 self,
                 "エラー",
-                "シーンが空です。\n先に「💾 シーンに保存」ボタンでシーンを保存してください。"
+                "シーンが空です。\nプロンプト編集エリアにテキストを入力してください。"
             )
             return
 
@@ -525,13 +551,7 @@ class SceneEditorPanel(QWidget):
         self.scene_changed.emit(self.current_scene)
         logger.info(f"[プレビュー表示] シーンID: {self.current_scene.scene_id}, 名前: {self.current_scene.scene_name}")
 
-        # 成功メッセージ
-        QMessageBox.information(
-            self,
-            "プレビュー表示",
-            f"シーン「{self.current_scene.scene_name}」をプレビューに表示しました。\n\n"
-            f"プレビューパネルで確認してください。"
-        )
+        # 成功メッセージは表示しない（スムーズなワークフローのため）
 
     def _on_block_double_clicked(self, item: QListWidgetItem):
         """ブロックダブルクリック時の処理
@@ -653,9 +673,6 @@ class SceneEditorPanel(QWidget):
             is_completed=False
         )
 
-        # 共通プロンプトを自動挿入
-        self._insert_common_prompts(scene)
-
         self.project.add_scene(scene)
 
         # タブ追加（シーン名を表示）
@@ -766,60 +783,6 @@ class SceneEditorPanel(QWidget):
         if current > 0:
             self.scene_tabs.setCurrentIndex(current - 1)
 
-    def _insert_common_prompts(self, scene: Scene):
-        """共通プロンプトを自動挿入
-
-        Args:
-            scene: シーンオブジェクト
-        """
-        if not self.project or not self.project.common_prompts:
-            return
-
-        # 有効な共通プロンプトを取得
-        enabled_prompts = [cp for cp in self.project.common_prompts if cp.enabled]
-
-        # 挿入位置別にグループ化
-        start_prompts = [cp for cp in enabled_prompts if cp.position == "start"]
-        end_prompts = [cp for cp in enabled_prompts if cp.position == "end"]
-
-        # 先頭に挿入（逆順）
-        for cp in reversed(start_prompts):
-            block = Block(
-                block_id=scene.get_next_block_id(),
-                type=BlockType.FIXED_TEXT,
-                content=cp.content,
-                is_common=True
-            )
-            scene.blocks.insert(0, block)
-
-            # BREAK挿入
-            if cp.insert_break_after:
-                break_block = Block(
-                    block_id=scene.get_next_block_id(),
-                    type=BlockType.BREAK,
-                    content=""
-                )
-                scene.blocks.insert(1, break_block)
-
-        # 末尾に挿入
-        for cp in end_prompts:
-            block = Block(
-                block_id=scene.get_next_block_id(),
-                type=BlockType.FIXED_TEXT,
-                content=cp.content,
-                is_common=True
-            )
-            scene.add_block(block)
-
-            # BREAK挿入
-            if cp.insert_break_after:
-                break_block = Block(
-                    block_id=scene.get_next_block_id(),
-                    type=BlockType.BREAK,
-                    content=""
-                )
-                scene.add_block(break_block)
-
     def _on_save_to_library(self):
         """ライブラリに保存ボタンクリック"""
         # 選択されているブロックを取得
@@ -924,6 +887,7 @@ class SceneEditorPanel(QWidget):
         dialog = SceneSaveDialog(
             scene=self.current_scene,
             scene_library_manager=self.scene_library_manager,
+            existing_item_id=self.current_scene.source_library_id,  # 元のシーンIDを渡す
             parent=self
         )
 
@@ -931,6 +895,10 @@ class SceneEditorPanel(QWidget):
             # 保存成功
             saved_item = dialog.get_saved_item()
             if saved_item:
+                # 次回保存時に上書き保存できるように、source_library_idを設定
+                self.current_scene.source_library_id = saved_item.id
+                logger.info(f"[ライブラリ保存] source_library_id設定: {saved_item.id}")
+
                 QMessageBox.information(
                     self,
                     "保存完了",
@@ -1280,4 +1248,215 @@ class SceneEditorPanel(QWidget):
         # プロジェクト内のシーンの順序も同期
         moved_scene = self.project.scenes.pop(from_index)
         self.project.scenes.insert(to_index, moved_scene)
+
+    def _on_batch_edit(self):
+        """一括編集ボタンクリック"""
+        if not self.project or not self.project.scenes:
+            QMessageBox.warning(
+                self,
+                "エラー",
+                "編集するシーンがありません。"
+            )
+            return
+
+        # 一括編集ダイアログを表示
+        from .batch_edit_dialog import BatchEditDialog
+
+        current_index = self.scene_tabs.currentIndex()
+        dialog = BatchEditDialog(
+            scenes=self.project.scenes,
+            current_scene_index=current_index,
+            parent=self
+        )
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # 編集情報を取得
+            operation_type, target_scenes, params = dialog.get_edit_info()
+
+            # 一括編集を実行
+            affected_count = self._execute_batch_edit(operation_type, target_scenes, params)
+
+            if affected_count > 0:
+                # UIを更新
+                self._update_all_scene_tabs()
+
+                # 現在のシーンをリロード
+                self._load_scene(self.scene_tabs.currentIndex())
+
+                # 成功メッセージ
+                operation_names = ["置換", "追加", "削除"]
+                QMessageBox.information(
+                    self,
+                    "完了",
+                    f"一括{operation_names[operation_type]}が完了しました。\n\n"
+                    f"処理シーン数: {affected_count}シーン"
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "完了",
+                    "変更はありませんでした。\n\n"
+                    "検索条件に一致するプロンプトが見つかりませんでした。"
+                )
+
+    def _execute_batch_edit(self, operation_type: int, target_scenes: List[Scene], params: dict) -> int:
+        """一括編集を実行
+
+        Args:
+            operation_type: 操作タイプ (0=置換, 1=追加, 2=削除)
+            target_scenes: 対象シーンのリスト
+            params: 操作パラメータ
+
+        Returns:
+            影響を受けたシーンの数
+        """
+        from utils.logger import get_logger
+        logger = get_logger()
+
+        affected_count = 0
+
+        if operation_type == 0:  # 置換
+            affected_count = self._batch_replace(target_scenes, params)
+        elif operation_type == 1:  # 追加
+            affected_count = self._batch_add(target_scenes, params)
+        elif operation_type == 2:  # 削除
+            affected_count = self._batch_delete(target_scenes, params)
+
+        logger.info(f"[一括編集] 操作タイプ: {operation_type}, 影響シーン数: {affected_count}")
+        return affected_count
+
+    def _batch_replace(self, target_scenes: List[Scene], params: dict) -> int:
+        """一括置換
+
+        Args:
+            target_scenes: 対象シーンのリスト
+            params: パラメータ (search, replace, case_sensitive)
+
+        Returns:
+            影響を受けたシーンの数
+        """
+        search_text = params['search']
+        replace_text = params['replace']
+        case_sensitive = params['case_sensitive']
+
+        affected_count = 0
+
+        for scene in target_scenes:
+            scene_changed = False
+
+            for block in scene.blocks:
+                # BREAKブロックはスキップ
+                if block.type == BlockType.BREAK:
+                    continue
+
+                # 置換処理
+                if case_sensitive:
+                    if search_text in block.content:
+                        block.content = block.content.replace(search_text, replace_text)
+                        scene_changed = True
+                else:
+                    # 大文字小文字を区別しない置換
+                    import re
+                    pattern = re.compile(re.escape(search_text), re.IGNORECASE)
+                    if pattern.search(block.content):
+                        block.content = pattern.sub(replace_text, block.content)
+                        scene_changed = True
+
+            if scene_changed:
+                affected_count += 1
+
+        return affected_count
+
+    def _batch_add(self, target_scenes: List[Scene], params: dict) -> int:
+        """一括追加
+
+        Args:
+            target_scenes: 対象シーンのリスト
+            params: パラメータ (text, position)
+
+        Returns:
+            影響を受けたシーンの数
+        """
+        add_text = params['text']
+        position = params['position']  # 'start' or 'end'
+
+        affected_count = 0
+
+        for scene in target_scenes:
+            # 新しいブロックを作成
+            new_block = Block(
+                block_id=scene.get_next_block_id(),
+                type=BlockType.WILDCARD if (add_text.startswith('__') and add_text.endswith('__')) else BlockType.FIXED_TEXT,
+                content=add_text
+            )
+
+            if position == 'start':
+                # 最初に追加
+                scene.blocks.insert(0, new_block)
+            else:
+                # 最後に追加
+                scene.add_block(new_block)
+
+            affected_count += 1
+
+        return affected_count
+
+    def _batch_delete(self, target_scenes: List[Scene], params: dict) -> int:
+        """一括削除
+
+        Args:
+            target_scenes: 対象シーンのリスト
+            params: パラメータ (text, case_sensitive)
+
+        Returns:
+            影響を受けたシーンの数
+        """
+        delete_text = params['text']
+        case_sensitive = params['case_sensitive']
+
+        affected_count = 0
+
+        for scene in target_scenes:
+            blocks_to_remove = []
+
+            for block in scene.blocks:
+                # BREAKブロックはスキップ
+                if block.type == BlockType.BREAK:
+                    continue
+
+                # 削除判定
+                should_delete = False
+                if case_sensitive:
+                    should_delete = delete_text in block.content
+                else:
+                    should_delete = delete_text.lower() in block.content.lower()
+
+                if should_delete:
+                    blocks_to_remove.append(block.block_id)
+
+            # ブロック削除
+            for block_id in blocks_to_remove:
+                scene.remove_block(block_id)
+
+            if blocks_to_remove:
+                affected_count += 1
+
+        return affected_count
+
+    def _update_all_scene_tabs(self):
+        """全シーンタブのコンテンツを更新"""
+        if not self.project:
+            return
+
+        from core.prompt_builder import PromptBuilder
+        builder = PromptBuilder()
+
+        for i, scene in enumerate(self.project.scenes):
+            scene_content_widget = self.scene_tabs.widget(i)
+            if isinstance(scene_content_widget, QTextEdit):
+                if scene.blocks:
+                    saved_prompt = builder.build_scene_prompt(scene, apply_common_prompts=False)
+                    scene_content_widget.setPlainText(saved_prompt)
+                else:
+                    scene_content_widget.clear()
 

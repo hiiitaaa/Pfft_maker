@@ -23,12 +23,14 @@ class Scene(SerializableMixin):
         is_completed: 完成フラグ（手動マーク方式）
         blocks: ブロックのリスト
         created_date: 作成日時
+        source_library_id: 元のシーンライブラリアイテムのID（読み込み元がある場合）
     """
     scene_id: int
     scene_name: str
     is_completed: bool = False
     blocks: List[Block] = field(default_factory=list)
     created_date: datetime = field(default_factory=datetime.now)
+    source_library_id: str | None = None  # 元のシーンライブラリアイテムのID
 
     def to_dict(self) -> Dict[str, Any]:
         """辞書に変換

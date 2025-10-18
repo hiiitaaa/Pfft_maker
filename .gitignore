@@ -41,21 +41,33 @@ Thumbs.db
 desktop.ini
 
 # Application specific
-data/*.csv
-data/*.json
-*.pfft
+*.pfft                      # ユーザーのプロジェクトファイル
 *.pfft.tmp
 .pfft_backup/
 *.log
 logs/
+test_data/                  # テストデータ
+wildcards/backup_*          # ワイルドカードのバックアップ
+
+# 配布版に含める例外（! で除外を解除）
+!data/prompts_library.csv   # プロンプトライブラリは配布に含める
+!data/settings.default.json # デフォルト設定（作成予定）
 
 # Test files
 tests/test_project.json
 tests/__pycache__/
 
-# Security
+# Security - 個人情報・APIキーを絶対に除外
 *.enc
+.master_key
 api_keys/
+data/.api_keys.enc
+data/.master_key
+data/settings.json          # 個人のパス設定を含む
+data/project_library.json   # 個人の作品
+data/scene_library.json     # 個人の作品
+data/custom_prompts.json    # 個人のプロンプト
+data/templates.json         # 個人のテンプレート
 
 # Build
 *.spec
