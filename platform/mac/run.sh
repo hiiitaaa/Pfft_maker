@@ -1,9 +1,12 @@
 #!/bin/bash
 # Pfft_maker 起動スクリプト (macOS用)
 # 開発環境で直接実行するためのスクリプト
+#
+# 使用方法: このスクリプトはplatform/mac/から実行されます
+# プロジェクトルートに移動してからrun.pyを実行します
 
-# スクリプトのディレクトリに移動
-cd "$(dirname "$0")"
+# プロジェクトルートディレクトリに移動
+cd "$(dirname "$0")/../.."
 
 # Python3の確認
 if ! command -v python3 &> /dev/null; then
