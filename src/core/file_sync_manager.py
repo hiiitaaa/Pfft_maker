@@ -236,13 +236,14 @@ class FileSyncManager:
             if progress_callback:
                 progress_callback("ユーザーラベルを保持中...")
 
-            label_stats = self._preserve_user_labels_after_sync(old_prompts)
+            label_stats = self._preserve_user_labels_after_sync(old_prompts, progress_callback)
 
         return sync_count, label_stats
 
     def _preserve_user_labels_after_sync(
         self,
-        old_prompts: List
+        old_prompts: List,
+        progress_callback: Optional[Callable[[str], None]] = None
     ) -> Dict[str, int]:
         """同期後にユーザーラベルを保持
 
@@ -263,7 +264,7 @@ class FileSyncManager:
 
         # ラベル保持
         preserver = LabelPreserver()
-        preserved_prompts = preserver.preserve_labels(old_prompts, new_prompts)
+        preserved_prompts = preserver.preserve_labels(old_prompts, new_prompts, progress_callback)
 
         # 統計情報取得
         stats = preserver.get_preservation_stats(old_prompts, preserved_prompts)

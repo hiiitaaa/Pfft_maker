@@ -3,7 +3,7 @@
 ワイルドカードファイル更新時に、ユーザーが設定した日本語ラベル・タグを保持します。
 """
 
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Callable
 from difflib import SequenceMatcher
 
 from models import Prompt
@@ -32,7 +32,8 @@ class LabelPreserver:
     def preserve_labels(
         self,
         old_prompts: List[Prompt],
-        new_prompts: List[Prompt]
+        new_prompts: List[Prompt],
+        progress_callback: Optional[Callable[[str], None]] = None
     ) -> List[Prompt]:
         """ユーザーラベルを保持
 
@@ -42,6 +43,7 @@ class LabelPreserver:
         Args:
             old_prompts: 既存のプロンプトリスト
             new_prompts: 新しいプロンプトリスト
+            progress_callback: 進捗コールバック関数
 
         Returns:
             ラベル・タグが引き継がれた新しいプロンプトリスト
@@ -63,9 +65,13 @@ class LabelPreserver:
 
         preserved_count = 0
         not_found_count = 0
+        total_prompts = len(new_prompts)
+
+        # 進捗更新の間隔（100件ごと）
+        update_interval = 100
 
         # 新しいプロンプトに対して照合
-        for new_prompt in new_prompts:
+        for index, new_prompt in enumerate(new_prompts):
             matched_old_prompt = self._find_matching_prompt(
                 new_prompt,
                 old_prompt_index,
@@ -84,6 +90,15 @@ class LabelPreserver:
                 # 照合失敗
                 if self._has_user_modifications(new_prompt):
                     not_found_count += 1
+
+            # 進捗更新（100件ごと、またはQtアプリケーション更新のため）
+            if progress_callback and (index % update_interval == 0 or index == total_prompts - 1):
+                progress_percent = int((index + 1) / total_prompts * 100)
+                progress_callback(f"ユーザーラベルを保持中... ({progress_percent}%)")
+
+                # UIスレッドの更新を許可
+                from PyQt6.QtWidgets import QApplication
+                QApplication.processEvents()
 
         self.logger.info(
             f"ラベル保持完了: 保持={preserved_count}件, 未照合={not_found_count}件"
