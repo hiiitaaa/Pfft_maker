@@ -28,13 +28,14 @@ Pfft_makerのmacOS用ビルド環境とセットアップ手順です。
 
 2. **依存パッケージのインストール**
    ```bash
-   cd Mac
+   # プロジェクトルートディレクトリで
    pip3 install -r requirements.txt
    ```
 
 3. **アプリケーションの起動**
    ```bash
-   ./run.sh
+   # プロジェクトルートディレクトリから
+   platform/mac/run.sh
    ```
 
    または
@@ -61,7 +62,11 @@ Pfft_makerのmacOS用ビルド環境とセットアップ手順です。
 ### 開発環境での実行
 
 ```bash
-./run.sh
+# プロジェクトルートディレクトリから
+platform/mac/run.sh
+
+# または直接実行
+python3 run.py
 ```
 
 ### アプリケーションバンドルの実行
@@ -86,8 +91,8 @@ pip3 install pyinstaller
 ### 2. ビルドの実行
 
 ```bash
-cd Mac
-./build_distribution.sh
+# プロジェクトルートディレクトリから実行
+platform/mac/build_distribution.sh
 ```
 
 ビルドが成功すると、`dist/Pfft_maker.app` が作成されます。
@@ -97,7 +102,7 @@ cd Mac
 配布用のDMGイメージを作成する場合：
 
 ```bash
-cd Mac
+# プロジェクトルートディレクトリから
 hdiutil create -volname "Pfft_maker" -srcfolder dist -ov -format UDZO Pfft_maker.dmg
 ```
 
@@ -141,25 +146,28 @@ pip3 install PyQt6
 # ビルドキャッシュのクリア
 rm -rf build dist __pycache__
 
-# 再度ビルド
-./build_distribution.sh
+# 再度ビルド（プロジェクトルートから）
+platform/mac/build_distribution.sh
 ```
 
 ## ファイル構成
 
 ```
-Mac/
-├── run.py                      # メインエントリーポイント
-├── run.sh                      # 実行スクリプト（開発用）
-├── build_distribution.sh       # ビルドスクリプト
-├── Pfft_maker_mac.spec        # PyInstaller設定ファイル
-├── requirements.txt           # Python依存パッケージ
-├── README_JP.md              # このファイル
-├── src/                       # ソースコード
+Pfft_maker/                    # プロジェクトルート
+├── src/                       # 共通ソースコード
 ├── data/                      # データファイル
 │   ├── prompts_library.csv   # プロンプトライブラリ
-│   └── settings.default.json # デフォルト設定
-└── resources/                 # リソースファイル
+│   └── lora_library.csv      # LoRAライブラリ
+├── resources/                 # 共通リソースファイル
+├── requirements.txt           # Python依存パッケージ
+├── run.py                     # 共通メインエントリーポイント
+└── platform/
+    └── mac/                   # macOS固有ファイル
+        ├── run.sh             # 実行スクリプト（開発用）
+        ├── build_distribution.sh    # ビルドスクリプト
+        ├── Pfft_maker_mac.spec     # PyInstaller設定ファイル
+        ├── README_JP.md       # このファイル
+        └── SETUP.txt          # セットアップガイド
 ```
 
 ## 注意事項
