@@ -25,6 +25,9 @@ class LabelPreserver:
     # 類似度閾値（90%以上で同一とみなす）
     SIMILARITY_THRESHOLD = 0.9
 
+    # 進捗更新の間隔（100件ごと）
+    PROGRESS_UPDATE_INTERVAL = 100
+
     def __init__(self):
         """初期化"""
         self.logger = get_logger()
@@ -48,63 +51,81 @@ class LabelPreserver:
         Returns:
             ラベル・タグが引き継がれた新しいプロンプトリスト
         """
-        self.logger.info(
-            f"ラベル保持処理開始: 既存{len(old_prompts)}件 → 新規{len(new_prompts)}件"
-        )
-
-        # ユーザー設定があるプロンプトを抽出
-        user_modified_prompts = [
-            p for p in old_prompts
-            if self._has_user_modifications(p)
-        ]
-
-        self.logger.info(f"ユーザー設定があるプロンプト: {len(user_modified_prompts)}件")
-
-        # 照合用のインデックスを作成
-        old_prompt_index = self._create_prompt_index(user_modified_prompts)
-
-        preserved_count = 0
-        not_found_count = 0
-        total_prompts = len(new_prompts)
-
-        # 進捗更新の間隔（100件ごと）
-        update_interval = 100
-
-        # 新しいプロンプトに対して照合
-        for index, new_prompt in enumerate(new_prompts):
-            matched_old_prompt = self._find_matching_prompt(
-                new_prompt,
-                old_prompt_index,
-                user_modified_prompts
+        try:
+            self.logger.info(
+                f"ラベル保持処理開始: 既存{len(old_prompts)}件 → 新規{len(new_prompts)}件"
             )
 
-            if matched_old_prompt:
-                # ラベル・タグを引き継ぐ
-                self._copy_user_data(matched_old_prompt, new_prompt)
-                preserved_count += 1
-                self.logger.debug(
-                    f"ラベル保持: {new_prompt.source_file}:{new_prompt.original_line_number} "
-                    f"← {matched_old_prompt.label_ja}"
-                )
-            else:
-                # 照合失敗
-                if self._has_user_modifications(new_prompt):
-                    not_found_count += 1
+            # ユーザー設定があるプロンプトを抽出
+            user_modified_prompts = [
+                p for p in old_prompts
+                if self._has_user_modifications(p)
+            ]
 
-            # 進捗更新（100件ごと、またはQtアプリケーション更新のため）
-            if progress_callback and (index % update_interval == 0 or index == total_prompts - 1):
-                progress_percent = int((index + 1) / total_prompts * 100)
-                progress_callback(f"ユーザーラベルを保持中... ({progress_percent}%)")
+            self.logger.info(f"ユーザー設定があるプロンプト: {len(user_modified_prompts)}件")
 
-                # UIスレッドの更新を許可
-                from PyQt6.QtWidgets import QApplication
-                QApplication.processEvents()
+            # 照合用のインデックスを作成
+            old_prompt_index = self._create_prompt_index(user_modified_prompts)
 
-        self.logger.info(
-            f"ラベル保持完了: 保持={preserved_count}件, 未照合={not_found_count}件"
-        )
+            preserved_count = 0
+            not_found_count = 0
+            error_count = 0
+            total_prompts = len(new_prompts)
 
-        return new_prompts
+            # 新しいプロンプトに対して照合
+            for index, new_prompt in enumerate(new_prompts):
+                try:
+                    matched_old_prompt = self._find_matching_prompt(
+                        new_prompt,
+                        old_prompt_index,
+                        user_modified_prompts
+                    )
+
+                    if matched_old_prompt:
+                        # ラベル・タグを引き継ぐ
+                        self._copy_user_data(matched_old_prompt, new_prompt)
+                        preserved_count += 1
+                        self.logger.debug(
+                            f"ラベル保持: {new_prompt.source_file}:{new_prompt.original_line_number} "
+                            f"← {matched_old_prompt.label_ja}"
+                        )
+                    else:
+                        # 照合失敗
+                        if self._has_user_modifications(new_prompt):
+                            not_found_count += 1
+
+                except Exception as e:
+                    # 1件のエラーで全体を止めない
+                    error_count += 1
+                    self.logger.error(
+                        f"プロンプト処理エラー (index={index}, "
+                        f"file={getattr(new_prompt, 'source_file', 'unknown')}): {e}"
+                    )
+                    # 処理を継続
+
+                # 進捗更新（100件ごと、またはQtアプリケーション更新のため）
+                if progress_callback and (index % self.PROGRESS_UPDATE_INTERVAL == 0 or index == total_prompts - 1):
+                    progress_percent = int((index + 1) / total_prompts * 100)
+                    progress_callback(f"ユーザーラベルを保持中... ({progress_percent}%)")
+
+                    # UIスレッドの更新を許可
+                    try:
+                        from PyQt6.QtWidgets import QApplication
+                        QApplication.processEvents()
+                    except Exception as e:
+                        self.logger.warning(f"UI更新エラー: {e}")
+
+            self.logger.info(
+                f"ラベル保持完了: 保持={preserved_count}件, 未照合={not_found_count}件, "
+                f"エラー={error_count}件"
+            )
+
+            return new_prompts
+
+        except Exception as e:
+            self.logger.error(f"ラベル保持処理で致命的エラー: {e}", exc_info=True)
+            # 致命的エラーの場合は新しいプロンプトをそのまま返す
+            return new_prompts
 
     def _has_user_modifications(self, prompt: Prompt) -> bool:
         """ユーザーによる変更があるかチェック
