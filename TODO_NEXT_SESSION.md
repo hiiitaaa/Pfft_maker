@@ -1,11 +1,51 @@
 # 次回セッション用 TODO & 引継ぎ事項
 
 **作成日**: 2025-10-18
-**最終コミット**: 15b04a1 - feat: LoRAライブラリ機能追加とプレビュー機能の修正
+**最終更新**: 2025-10-19
+**最新コミット**: 0c94598 - refactor: プラットフォーム固有ファイルを分離してメンテナンス性を向上
 
 ---
 
-## ✅ 完了した作業（2025-10-18）
+## ✅ 完了した作業
+
+### 2025-10-19セッション
+
+#### 1. プラットフォーム固有ファイルの分離（重要な構造改善）
+- [x] `platform/windows/`と`platform/mac/`フォルダを作成
+- [x] Windows固有ファイルをplatform/windows/に移動
+  - Pfft_maker.bat, build_distribution.bat, check_virustotal.bat
+  - Pfft_maker.spec, version_info.txt
+- [x] Mac固有ファイルをplatform/mac/に移動
+  - build_distribution.sh, run.sh, Pfft_maker_mac.spec
+  - README_JP.md, SETUP.txt
+- [x] Mac/フォルダを削除（重複ソースコードを解消）
+- [x] ビルドスクリプトのパスを修正（ルートから実行）
+- [x] .gitignoreを更新（platform/**/*.specを除外対象外に）
+
+**メリット**:
+- ✅ ソースコードの重複を完全に排除
+- ✅ 機能追加・バグ修正が1回で済む
+- ✅ プラットフォーム固有の部分が明確に分離
+- ✅ メンテナンスが大幅に容易に
+
+**コミット**:
+- `2ac7cf4`: chore: プロジェクト整理 - ビルドスクリプトと.gitignore更新
+- `0c94598`: refactor: プラットフォーム固有ファイルを分離してメンテナンス性を向上
+
+#### 2. ドキュメント更新
+- [x] README.md更新
+  - platform構造を反映
+  - ビルド方法セクションを追加
+  - 起動コマンドのパスを更新
+
+#### 3. アプリケーション動作確認
+- [x] アプリ起動テスト成功
+- [x] LoRA機能が正常動作（77件読み込み確認）
+- [x] ライブラリ読み込み正常（11,176件）
+
+---
+
+## ✅ 完了した作業（2025-10-18セッション）
 
 ### 1. LoRAライブラリ機能（完全実装）
 - [x] LoRAファイル（.safetensors）の自動スキャン機能
@@ -51,61 +91,32 @@ git remote add origin <リポジトリURL>
 git push -u origin master
 ```
 
-### 2. LoRA機能の動作確認
-**状態**: 実装完了、起動確認済み、実際のスキャン未テスト
+### 2. LoRA機能の実際のスキャンテスト
+**状態**: 起動確認済み（77件LoRA読み込み確認）、実際の環境でのスキャンテストは未実施
 **次回やること**:
-1. アプリを起動
-2. 設定画面でLoRAディレクトリを設定（例: E:\EasyReforge\Model\Lora）
-3. 🎨LoRAタブで「🔍 スキャン」ボタンをクリック
-4. LoRAファイルが一覧表示されることを確認
-5. ダブルクリックでプロンプトに挿入されることを確認
+1. 設定画面でLoRAディレクトリを設定（例: E:\EasyReforge\Model\Lora）
+2. 🎨LoRAタブで「🔍 スキャン」ボタンをクリック
+3. LoRAファイルが一覧表示されることを確認
+4. ダブルクリックでプロンプトに挿入されることを確認
+5. Civitai.infoメタデータの読み込みを確認
 
 ---
 
-## 📂 プロジェクトフォルダの整理
+## 📂 プロジェクトフォルダの整理状況
 
-### 未追跡ファイル（git status）
+### ✅ 完了済み
+- [x] .gitignoreの整理（data/, test_data/, Mac.zipを除外）
+- [x] ビルドスクリプトをplatform/に移動・管理
+- [x] Mac/フォルダの重複解消（platform/mac/に統合）
+- [x] プラットフォーム固有ファイルの明確な分離
 
+### 現在の未追跡ファイル
 ```
-?? Mac.zip                    # Macビルド用アーカイブ（.gitignore追加検討）
-?? Mac/                       # Macビルド用ソース（.gitignore追加検討）
-?? Pfft_maker.bat            # Windows起動バッチ（追加すべきか確認）
-?? build_distribution.bat    # ビルド用スクリプト（追加すべきか確認）
-?? check_virustotal.bat      # セキュリティチェック用（追加すべきか確認）
-?? data/                      # ユーザーデータ（.gitignoreに追加すべき）
-?? test_data/                 # テストデータ（.gitignoreに追加すべき）
-?? version_info.txt          # バージョン情報（追加すべきか確認）
-```
-
-### 推奨対応
-
-#### 1. .gitignoreに追加すべきファイル
-```gitignore
-# ユーザーデータ（個人情報含む可能性）
-data/
-test_data/
-
-# ビルド成果物
-Mac.zip
-dist/
-build/
+?? data/                      # ユーザーデータ（.gitignoreで除外済み）
+?? test_data/                 # テストデータ（.gitignoreで除外済み）
 ```
 
-#### 2. リポジトリに追加すべきファイル
-```bash
-git add Pfft_maker.bat              # Windows起動用
-git add build_distribution.bat      # ビルドスクリプト
-git add check_virustotal.bat        # セキュリティチェック
-git add version_info.txt            # バージョン情報
-```
-
-#### 3. 判断が必要なファイル
-- `Mac/`: Macビルド用のソースコード
-  - **推奨**: 別ブランチまたは別リポジトリに移動
-  - **理由**: Windows版とMac版を混在させるとメンテナンス困難
-- `Mac.zip`: アーカイブファイル
-  - **推奨**: .gitignoreに追加
-  - **理由**: バイナリファイルはGitに適さない
+**これらはユーザー個人のデータなので、.gitignoreで正しく除外されています。**
 
 ---
 
@@ -133,27 +144,23 @@ git add version_info.txt            # バージョン情報
   - リポジトリURLを確認
   - `git remote add origin <URL>`
   - `git push -u origin master`
+  - または `git push -u origin main`（リポジトリのデフォルトブランチに合わせる）
 
-- [ ] **LoRA機能の動作確認**
-  - 実際のLoRAファイルでスキャン
-  - メタデータ読み込みの確認
-  - プロンプト挿入の確認
-
-- [ ] **.gitignoreの整理**
-  - data/, test_data/を追加
-  - Mac.zipを追加
-  - 不要なファイルを除外
+- [ ] **LoRA機能の実際のスキャンテスト**
+  - 実際のLoRAディレクトリでスキャン実行
+  - Civitai.infoメタデータ読み込み確認
+  - プロンプト挿入動作確認
+  - 日本語ファイル名の対応確認
 
 ### 優先度: 中
 
-- [ ] **フォルダ整理**
-  - Mac/の扱いを決定（別ブランチ？削除？）
-  - バッチファイルをリポジトリに追加
-  - version_info.txtの管理方法を決定
-
 - [ ] **ドキュメント追加**
   - LoRA機能の使い方をTUTORIAL.mdに追加
+  - platform構造についての説明を追加
   - トラブルシューティングセクションの充実
+
+- [ ] **README.mdとTODO_NEXT_SESSION.mdの変更をコミット**
+  - 今回のドキュメント更新をコミット
 
 ### 優先度: 低
 
@@ -171,13 +178,29 @@ git add version_info.txt            # バージョン情報
 
 ## 📊 プロジェクト統計
 
+### 最新セッション（2025-10-19）
 ```
-変更ファイル: 33ファイル
-追加行数: +4,751行
-削除行数: -463行
-純増: +4,288行
+コミット数: 2件
+変更ファイル: 17ファイル
+追加: platform/フォルダ構造
+削除: Mac/フォルダ（重複ソース解消）
 
-新規ファイル:
+主な変更:
+- プラットフォーム固有ファイルの分離
+- README.mdの更新（platform構造反映）
+- TODO_NEXT_SESSION.mdの更新
+```
+
+### 累計（プロジェクト全体）
+```
+主要機能:
+- LoRAライブラリ機能（src/core/lora_*.py）
+- 自作プロンプトライブラリ
+- シーンライブラリ
+- テンプレート機能
+- AI連携（Claude API）
+
+ソースファイル:
 - src/core/lora_library_manager.py (202行)
 - src/core/lora_parser.py (212行)
 - src/core/backup_manager.py
@@ -213,11 +236,41 @@ git add version_info.txt            # バージョン情報
 
 1. [ ] このTODO_NEXT_SESSION.mdを読む
 2. [ ] git statusで現在の状態を確認
-3. [ ] 最新のログファイルを確認（logs/pfft_maker_*.log）
-4. [ ] アプリケーションの起動確認
-5. [ ] 優先度: 高のTODOから着手
+3. [ ] git logで最新のコミットを確認（現在: 0c94598）
+4. [ ] 最新のログファイルを確認（logs/pfft_maker_*.log）
+5. [ ] アプリケーションの起動確認
+6. [ ] 優先度: 高のTODOから着手
+
+---
+
+## 🎯 重要な改善点（2025-10-19）
+
+### プラットフォーム構造の分離
+今回のセッションで、プロジェクトの構造を大幅に改善しました：
+
+**変更前の問題**:
+- Mac/フォルダにソースコードが重複
+- 機能追加時に2箇所修正が必要
+- Mac版が古いバージョンになっていた
+
+**変更後の利点**:
+- 共通ソースコード（src/）は1つだけ
+- プラットフォーム固有ファイルはplatform/に分離
+- 機能追加・バグ修正が1回で済む
+- メンテナンスが大幅に容易
+
+**新しいビルド方法**:
+```bash
+# Windows
+platform\windows\build_distribution.bat
+
+# Mac
+platform/mac/build_distribution.sh
+```
 
 ---
 
 **次回セッション担当者へ**:
 このドキュメントは最新の状態を反映しています。不明点があれば、CHANGELOG.mdとUSER_GUIDE.mdも参照してください。
+
+プラットフォーム固有ファイルの分離により、今後の開発が大幅に効率化されています。

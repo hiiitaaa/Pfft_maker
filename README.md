@@ -96,6 +96,20 @@ Pfft_makerは、Stable Diffusion WebUIのワイルドカードファイルを一
 pip install -r requirements.txt
 ```
 
+### ビルド（配布版作成）
+
+```bash
+# Windows版ビルド
+platform\windows\build_distribution.bat
+
+# Mac版ビルド
+platform/mac/build_distribution.sh
+
+# ビルド成果物
+# - Windows: dist\Pfft_maker\Pfft_maker.exe
+# - macOS: dist/Pfft_maker.app
+```
+
 ## 📚 ドキュメント
 
 ### 初めての方へ
@@ -117,10 +131,13 @@ pip install -r requirements.txt
 
 ```bash
 # Windowsバッチファイル
-Pfft_maker.bat
+platform\windows\Pfft_maker.bat
 
 # または直接実行
 python run.py
+
+# macOS
+platform/mac/run.sh
 ```
 
 ### 基本ワークフロー
@@ -151,22 +168,38 @@ python test_real_wildcards.py
 
 ```
 Pfft_maker/
-├── src/                      # ソースコード
+├── src/                      # 共通ソースコード
 │   ├── models/               # データモデル（Project, Scene, Block, Prompt）
 │   ├── core/                 # コアロジック（Parser, Builder, LibraryManager）
 │   ├── ui/                   # UI実装（PyQt6 - 3カラムレイアウト）
 │   ├── ai/                   # AI連携（APIキー管理のみ実装済み）
 │   ├── config/               # 設定管理
 │   └── utils/                # ユーティリティ
+├── platform/                 # プラットフォーム固有ファイル
+│   ├── windows/              # Windows版固有
+│   │   ├── Pfft_maker.bat           # 起動スクリプト
+│   │   ├── build_distribution.bat   # ビルドスクリプト
+│   │   ├── check_virustotal.bat     # セキュリティチェック
+│   │   ├── Pfft_maker.spec          # PyInstallerスペック
+│   │   └── version_info.txt         # バージョン情報
+│   └── mac/                  # macOS版固有
+│       ├── run.sh                   # 起動スクリプト
+│       ├── build_distribution.sh    # ビルドスクリプト
+│       ├── Pfft_maker_mac.spec      # PyInstallerスペック
+│       ├── README_JP.md             # Mac版README
+│       └── SETUP.txt                # セットアップガイド
 ├── data/                     # データディレクトリ
 │   ├── prompts_library.csv   # プロンプトライブラリ（10,942件）
+│   ├── lora_library.csv      # LoRAライブラリ（スキャン後作成）
 │   └── settings.json         # 設定ファイル
 ├── wildcards/                # ローカルワイルドカードファイル
 ├── tests/                    # テストコード
 ├── docs/                     # ドキュメント
+│   ├── USER_GUIDE.md         # ユーザーガイド
+│   ├── TUTORIAL.md           # チュートリアル
 │   └── archive/              # アーカイブドキュメント
 ├── requirements.txt          # 依存関係
-├── run.py                    # 起動スクリプト
+├── run.py                    # 共通起動スクリプト
 └── README.md                 # このファイル
 ```
 
