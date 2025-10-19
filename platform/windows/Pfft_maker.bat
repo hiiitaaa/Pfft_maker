@@ -1,15 +1,13 @@
 @echo off
 REM Pfft_maker Application Launcher (Windows)
-REM
-REM 使用方法: このスクリプトはplatform/windows/から実行されます
-REM プロジェクトルートに移動してからrun.pyを実行します
+REM This script runs from platform/windows/ and moves to project root
 
 echo ========================================
 echo Pfft_maker Starting...
 echo ========================================
 echo.
 
-REM プロジェクトルートディレクトリに移動
+REM Move to project root directory
 cd /d "%~dp0..\.."
 
 REM Check Python
